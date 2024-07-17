@@ -1,4 +1,4 @@
-# Aggregated DSSAT output and ONI classification of aggregated DSSAT output
+#  ONI classification of aggregated DSSAT output
 
 # Introduction: 
 # This script allows : 

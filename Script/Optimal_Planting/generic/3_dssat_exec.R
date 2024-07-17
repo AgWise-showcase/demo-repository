@@ -50,7 +50,7 @@ rundssat <-function(i,path.to.extdata,TRT,AOI=TRUE,crop_code,path_DSSAT){
   gc()
 }
 
-#' Main function that define the files to run DSSAT
+#' Main function that simulate the DSSAT model
 #'
 #' @param country country name
 #' @param useCaseName use case name  name
