@@ -4,7 +4,7 @@
 ##############################################################################################
 rm(list=ls())
 packages_required <- c("plyr", "tidyverse", "ggplot2", "foreach","doParallel","MuMIn","ggpmisc","sf","cluster","h2o",
-                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal")
+                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal", "rstudioapi", "git2r")
 
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
@@ -13,37 +13,65 @@ suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_requir
 
 
 #################################################################################################################
-# 2. give path for input data and where to write results and define use case essentials 
+# 2.Get the current script's directory
+#################################################################################################################
+
+# Initialize the repository: yo need to adjust "D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/" to your file structure
+repo <- repository("D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/demo-repository")
+
+# Get the working directory of the repository
+repo_root <- workdir(repo)
+
+# Specify the absolute path of your files
+input_path <- "Data/Fertilizer_recom/"
+geoSpatialData_path <- "Data/geospatial/"
+output_path <- "Data/Fertilizer_recom/Intermediate/"
+
+data_realtive_path <- sub(repo_root, "", input_path)
+data_full_path <- file.path(repo_root, data_realtive_path)
+
+gs_realtive_path <- sub(repo_root, "", geoSpatialData_path)
+gs_full_path <- file.path(repo_root, gs_realtive_path)
+
+
+result_realtive_path <- sub(repo_root, "", output_path)
+result_full_path <- file.path(repo_root, result_realtive_path)
+
+# create a folder for result
+if (!dir.exists(result_full_path)){
+  dir.create(file.path(result_full_path), recursive = TRUE)
+}
+
+
+
+#################################################################################################################
+# 3. read input data and define global variables 
 #################################################################################################################
 country <- "Rwanda"
 useCaseName <- "RAB"
 Crop <- "Potato"
-pathOut <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate"
-if (!dir.exists(pathOut1)){
-  dir.create(file.path(pathOut), recursive = TRUE)
-}
+ds <- readRDS(paste0(data_full_path, "/modelReady.RDS"))
+INS <- readRDS(paste0(data_full_path, "/modelReady_INS.RDS"))
+Soil_PointData_AOI <- readRDS(paste0(data_full_path, "/Soil_PointData_AOI.RDS"))
+topo <-  readRDS(paste0(data_full_path, "/topoData_AOI.RDS"))
+AEZ <- readOGR(dsn=gs_full_path,  layer="AEZ_DEM_Dissolve")
 
 
-############################################################################################
-# Alternative approach: Predict yield directly from NPK aaplied and geo-spatila factors using ML models 
-ds <- readRDS("D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/demo-repository/Data/Fertilizer_recom/modelReady.RDS")
-INS <- readRDS("D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/demo-repository/Data/Fertilizer_recom/modelReady_INS.RDS")
+#################################################################################################################
+# 4.  train ML model using h2o
+#################################################################################################################
+### for each model test with and without district and refY (or any other variable you wish for your specifc case) 
+
 INS2 <- INS %>% 
   dplyr::select(-c(N_base_supply,P_base_supply,K_base_supply)) %>% 
   unique()
-
 ds2 <- ds %>% dplyr::select(c("TLID", "N","P","K","blup"))
 dssr2 <- ds2 %>% inner_join(INS2) %>% unique()
-
-########################## train ML model #################################
-### compare GB and RF models
-### for each model test with and without district and refY and season 
 
 response <- "blup"
 predictors <- dssr2 |> names()
 predictors <- predictors[!predictors %in% c("TLID", "blup","Ya" ,"season","season_AB", "lat", "lon", "Experiment", "AltClass","AEZs_no","AltClass2", "expCode")]
 predictors2 <- predictors[!predictors %in% c("district", "refY")]
-
 
 h2o.init()
 ML_data.h2o <- as.h2o(dssr2)
@@ -115,17 +143,17 @@ grid_RF_CJ_fvar <- h2o.grid(
 
 
 # Get the best hyper parameters
-saveRDS(grid_gbm_CJ, paste(pathOut, "grid_gbm_CJ.RDS", sep=""))
+# Write data to the file
+saveRDS(grid_gbm_CJ, paste0(result_full_path, "grid_gbm_CJ.RDS"))
 best_hyperParm_GB <- h2o.getModel(grid_gbm_CJ@model_ids[[1]])
 
-saveRDS(grid_gbm_CJ_fvar, paste(pathOut, "grid_gbm_CJ_fvar.RDS", sep=""))
+saveRDS(grid_gbm_CJ_fvar, paste(result_full_path, "grid_gbm_CJ_fvar.RDS", sep="/"))
 best_hyperParm_GB_fvar <- h2o.getModel(grid_gbm_CJ_fvar@model_ids[[1]])
 
-saveRDS(grid_RF_CJ, paste(pathOut, "grid_RF_CJ.RDS", sep=""))
+saveRDS(grid_RF_CJ, paste(result_full_path, "grid_RF_CJ.RDS", sep="/"))
 best_hyperParm_RF <- h2o.getModel(grid_RF_CJ@model_ids[[1]])
- 
 
-saveRDS(grid_RF_CJ_fvar, paste(pathOut, "grid_RF_CJ_fvar.RDS", sep=""))
+saveRDS(grid_RF_CJ_fvar, paste(result_full_path, "grid_RF_CJ_fvar.RDS", sep="/"))
 best_hyperParm_RF_fvar <- h2o.getModel(grid_RF_CJ_fvar@model_ids[[1]])
 
 
@@ -141,12 +169,11 @@ ML_gbm_CJ <- h2o.gbm(x = predictors,
                      nfolds = 5,
                      seed = 444)
 
-
-model_path_gbm_CJ <- h2o.saveModel(object = ML_gbm_CJ, path = pathOut, force = TRUE)
+model_path_gbm_CJ <- h2o.saveModel(object = ML_gbm_CJ, path = result_full_path, force = TRUE)
 print(model_path_gbm_CJ)
-model_path_gbm_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1720453561806_1"
+# model_path_gbm_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1721043314285_1"
 model_GB_CJ <- h2o.loadModel(model_path_gbm_CJ)
-local_model_GB_CJ <- h2o.download_model(model_GB_CJ, path = pathOut)
+local_model_GB_CJ <- h2o.download_model(model_GB_CJ, path = result_full_path)
 ML_gbm_CJ <- h2o.upload_model(local_model_GB_CJ)
 
 
@@ -161,11 +188,11 @@ ML_gbm_CJ_fvar <- h2o.gbm(x = predictors2,
                      nfolds = 5,
                      seed = 444)
 
-model_path_gbm_CJ_fvar <- h2o.saveModel(object = ML_gbm_CJ_fvar, path = pathOut, force = TRUE)
+model_path_gbm_CJ_fvar <- h2o.saveModel(object = ML_gbm_CJ_fvar, path = result_full_path, force = TRUE)
 print(model_path_gbm_CJ_fvar)
-model_path_gbm_CJ_fvar <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1720453561806_2"
+# model_path_gbm_CJ_fvar <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1721043314285_2"
 model_GB_CJ_fvar <- h2o.loadModel(model_path_gbm_CJ_fvar)
-local_model_GB_CJ_fvar <- h2o.download_model(model_GB_CJ_fvar, path = pathOut)
+local_model_GB_CJ_fvar <- h2o.download_model(model_GB_CJ_fvar, path = result_full_path)
 ML_gbm_CJ_fvar <- h2o.upload_model(local_model_GB_CJ_fvar)
 
 
@@ -180,11 +207,11 @@ ML_RF_CJ <- h2o.randomForest(x = predictors,
                                      nfolds = 5,
                                      seed = 444)
  
-model_path_rf_CJ <- h2o.saveModel(object = ML_RF_CJ, path = pathOut, force = TRUE)
+model_path_rf_CJ <- h2o.saveModel(object = ML_RF_CJ, path = result_full_path, force = TRUE)
 print(model_path_rf_CJ)
-model_path_rf_CJ <-  "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\DRF_model_R_1720453561806_3"
+# model_path_rf_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\DRF_model_R_1721206198954_1"
 model_RF_CJ <- h2o.loadModel(model_path_rf_CJ)
-local_model_RF_CJ <- h2o.download_model(model_RF_CJ, path = pathOut)
+local_model_RF_CJ <- h2o.download_model(model_RF_CJ, path = result_full_path)
 model_path_rf_CJ <- h2o.upload_model(local_model_RF_CJ)
 
 
@@ -200,11 +227,11 @@ ML_RF_CJ_fvar <- h2o.randomForest(x = predictors2,
                              nfolds = 5,
                              seed = 444)
 
-model_path_rf_CJ_fvar <- h2o.saveModel(object = ML_RF_CJ_fvar, path = pathOut, force = TRUE)
+model_path_rf_CJ_fvar <- h2o.saveModel(object = ML_RF_CJ_fvar, path = result_full_path, force = TRUE)
 print(model_path_rf_CJ_fvar)
-model_path_rf_CJ_fvar <-  "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\DRF_model_R_1720453561806_4"
+# model_path_rf_CJ_fvar <-  "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\DRF_model_R_1721206198954_2"
 model_RF_CJ_fvar <- h2o.loadModel(model_path_rf_CJ_fvar)
-local_model_RF_CJ_fvar <- h2o.download_model(model_RF_CJ_fvar, path = pathOut)
+local_model_RF_CJ_fvar <- h2o.download_model(model_RF_CJ_fvar, path = result_full_path)
 ML_RF_CJ_fvar <- h2o.upload_model(local_model_RF_CJ_fvar)
 
 
@@ -257,8 +284,9 @@ for(k in unique(dssr2$TLID)){
   Leave1_GB_blupY <- rbind(Leave1_GB_blupY, tdata )
 }
 
-saveRDS(Leave1_GB_blupY, "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\Leave1_GB_RF.RDS")
-Leave1_GB_RF <- readRDS("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\Leave1_GB_RF.RDS")
+
+saveRDS(Leave1_GB_blupY, paste(result_full_path, "Leave1_GB_RF.RDS", sep="/"))
+Leave1_GB_RF <- readRDS(paste(result_full_path, "Leave1_GB_RF.RDS", sep="/"))
 
 
 Leave1_GB_RF <- Leave1_GB_RF %>% 
@@ -293,9 +321,10 @@ Leave1_GB_RF <- Leave1_GB_RF %>%
   theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size=12), axis.title = element_text(size=14))
 
 
-ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_CJ_yield.pdf", 
-       gg_GB, width=10, height = 7)
+# ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_CJ_yield.pdf", 
+#        gg_GB, width=10, height = 7)
 
+ggsave(paste0(result_full_path, "/ML_GB_CJ_yield.pdf"), gg_GB, width=10, height = 7)
 
 
 
@@ -323,8 +352,9 @@ gg_GB_fvar <- ggplot(Leave1_GB_RF, aes(x = Observed, y = GB_Predicted_fVar)) +
   theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size=12), axis.title = element_text(size=14))
 
 
-ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_CJ_fVar_yield.pdf", 
-       gg_GB_fvar, width=10, height = 7)
+# ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_CJ_fVar_yield.pdf", 
+#        gg_GB_fvar, width=10, height = 7)
+ggsave(paste0(result_full_path, "/ML_GB_CJ_fVar_yield.pdf"), gg_GB_fvar, width=10, height = 7)
 
 
 
@@ -354,8 +384,10 @@ gg_RF <- ggplot(Leave1_GB_RF, aes(x = Observed, y = RF_Predicted)) +
   theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size=12), axis.title = element_text(size=14))
 
 
-ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_RF_CJ_yield.pdf", 
-       gg_RF, width=10, height = 7)
+# ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_RF_CJ_yield.pdf", 
+#        gg_RF, width=10, height = 7)
+
+ggsave(paste0(result_full_path, "/ML_RF_CJ_yield.pdf"), gg_RF, width=10, height = 7)
 
 
 
@@ -385,8 +417,11 @@ gg_RF_fvar <- ggplot(Leave1_GB_RF, aes(x = Observed, y = RF_Predicted_fvar)) +
   theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size=12), axis.title = element_text(size=14))
 
 
-ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_RF_CJ_fVar_yield.pdf", 
-       gg_RF_fvar, width=10, height = 7)
+# ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_RF_CJ_fVar_yield.pdf", 
+#        gg_RF_fvar, width=10, height = 7)
+ggsave(paste0(result_full_path, "/ML_RF_CJ_fVar_yield.pdf"), gg_RF_fvar, width=10, height = 7)
+
+
 
 
 head(Leave1_GB_RF)
@@ -434,8 +469,12 @@ gg_GB_RF_Yeffect <- ggplot(data = pred_Ydiff_ms, aes(x = dY, y = value,)) +
         axis.text = element_text(size = 14),
         strip.text = element_text(size = 14, face="bold"))
 
-ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_RF_Yieldeffect.pdf", 
-       gg_GB_RF_Yeffect, width=10, height = 7)
+# ggsave("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\plots\\ML_GB_RF_Yieldeffect.pdf", 
+#        gg_GB_RF_Yeffect, width=10, height = 7)
+
+ggsave(paste0(result_full_path, "/ML_GB_RF_Yieldeffect.pdf"), gg_GB_RF_Yeffect, width=10, height = 7)
+
+
 
 
 #############################################################################
@@ -455,11 +494,10 @@ fr <- data.frame("N" = seq(0, 180, 1),
 
 ## AEZ and altitude info for AOI
 ## soil data for AOI
-Soil_PointData_AOI <- readRDS("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Soil_PointData_AOI.RDS")
-Soil_PointData_AOI <- Soil_PointData_AOI %>% dplyr::rename(province = NAME_1, district = NAME_2) %>% unique()
+# Soil_PointData_AOI <- readRDS("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Soil_PointData_AOI.RDS")
+# AEZ <- readOGR(dsn="D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\geospatial\\",  layer="AEZ_DEM_Dissolve")
 
-require(rgdal)
-AEZ <- readOGR(dsn="D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\geospatial\\",  layer="AEZ_DEM_Dissolve")
+Soil_PointData_AOI <- Soil_PointData_AOI %>% dplyr::rename(province = NAME_1, district = NAME_2) %>% unique()
 RW_aez <- spTransform(AEZ, CRS( "+proj=longlat +ellps=WGS84 +datum=WGS84"))
 gpsPoints <- Soil_PointData_AOI[, c("longitude", "latitude")]
 gpsPoints$longitude <- as.numeric(gpsPoints$longitude)
@@ -480,7 +518,7 @@ RAW_AEZ_trial <- RAW_AEZ_trial %>%
 Soil_AEZ_AOI <- Soil_PointData_AOI %>%
   left_join(RAW_AEZ_trial)
 
-topo <- readRDS("D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\topoData_AOI.RDS")
+
 
 pred_df <- Soil_AEZ_AOI %>%
   dplyr::mutate_if(is.character, as.factor) %>% 
@@ -498,8 +536,8 @@ dim(NPK)
 ## call trained model
 h2o.init()
 
-pathOut <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate"
-model_path_gbm_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1720453561806_1"
+model_path_gbm_CJ <- paste0(result_full_path, "/GBM_model_R_1721043314285_1")
+# model_path_gbm_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1721043314285_1"
 model_GB_CJ <- h2o.loadModel(model_path_gbm_CJ)
 local_model_GB_CJ <- h2o.download_model(model_GB_CJ, path = pathOut)
 ML_gbm_CJ <- h2o.upload_model(local_model_GB_CJ)
@@ -536,8 +574,7 @@ for(i in 1:100){#nrow(pred_df)){
 ## yield at current practice, NPK requirement for a target yield can be read from the curve 
 ## optimizing for nutrient use efficiency, profit, etc can also be done using this data. 
 
-write.csv(yieldSimulation, 
-          "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\ML_NPKrates.csv", row.names = FALSE)
+write.csv(yieldSimulation, paste0(result_full_path,"/ML_NPKrates.csv"), row.names = FALSE)
 
 
 
