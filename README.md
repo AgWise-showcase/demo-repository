@@ -28,7 +28,7 @@ We estimated the optimal planting dates and cultivars per location based on wate
 
 #### Create weather and soil files in DSSAT format
 The function `readGeo_CM_zone` available in [Script/Optimal_Planting/generic/1_readGeo_CM_zone.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/1_readGeo_CM_zone.R) reads input data in R format (RDS) for each location that we want to simulate. For details on how to organize the weather and soil data, see the example data in the following folder [Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/raw/geo_4cropModel/Amajyaruguru](https://github.com/AgWise-showcase/demo-repository/tree/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/raw/geo_4cropModel/Amajyaruguru). We use the [DSSAT package](https://cran.r-project.org/web/packages/DSSAT/index.html) available in R to convert the information in R format to DSSAT format. 
-The following is an example of how to obtain information in DSSAT format for Rwanda:
+The following is an example of how to obtain information in DSSAT format for Rwanda. See the whole example to run the country at [/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R):
 
       source(~/Script/Optimal_Planting/generic/1_readGeo_CM_zone.R)
       country <- "Rwanda"
@@ -47,6 +47,43 @@ The following is an example of how to obtain information in DSSAT format for Rwa
       readGeo_CM_zone(pathInput= pathInput,pathOutput = pathOutput, country = country, useCaseName = useCaseName, Crop = Crop, AOI = AOI, 
                       season= season, zone =zones[1],level2=level2,varietyid =varietyid,pathIn_zone = pathIn_zone)
 
+To get the soil data in DSSAT format, you must have a soil.sol file as a template for creating the different soil data by location. The template soil data is located in the [Data and Landing folder of the example simulation](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/soil.sol)
 
+#### Create experimental file in DSSAT format
+The function `dssat.expfile` available in [Script/Optimal_Planting/generic/2_dssat_expfile_zone.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/2_dssat_expfile_zone.R) creates an experimental file based on a [template experimental file](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/KEAG8104.MZX). The function allows you to have different weekly planting dates (_plantingWindow_) based on an initial planting date (_Planting_month_date_). You can add fertilizer applications for each planting as long as it is initially defined in the template file (_fertilizer=F_). The function starts the simulations and field capacity one month before planting; however, if you want to modify the initial soil water content, you can change the parameter _index_soilwat_ with 1 representing field capacity and 0 wilting point. Finally, you can change the variety ID (_varietyid_) you want to simulate. The ID of the variety should be available in the [template cultivar file of DSSAT](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/MZCER048.CUL). Below there is an example of how to obtain a experimental file for a given zone and variety. A whole example for the country is available at [/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/2_create_Experimental_File_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/2_create_Experimental_File_RAB_Maize.R)   
+      
+      source("~/Script/Optimal_Planting/generic/2_dssat_expfile_zone.R")
+
+      country <- "Rwanda"
+      useCaseName <- "RAB"
+      Crop <-  "Maize"
+      AOI = TRUE
+      season=1
+      level2 <- NA
+      varietyids <- c("890011","890012","890013")
+      pathIn_zone = TRUE
+      filex_temp <- "KEAG8104.MZX"
+      Planting_month_date="03-01"
+      Harvest_month_date="11-30"
+      ID="TLID"
+      plantingWindow=1
+      fertilizer=F
+      geneticfiles = "MZCER048"
+      index_soilwat=1
+      
+      path_coord <- paste("~/Data/Optimal_Planting/useCase_", country, "_", useCaseName,"/", Crop, "/raw", sep="")
+      pathInput <- paste("~/Data/Optimal_Planting/useCase_", country, "_", useCaseName,"/", Crop, "/raw/geo_4cropModel", sep="")
+      pathOutput <- "~/Data/Optimal_Planting"
+      
+      
+      zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyids[1], sep=""))
+      zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyids[1], "/", zones, sep=""))$isdir]
+      zones <- zones[zones != "gadm"]
+      
+      expdata_AOI <- dssat.expfile(path_coord=path_coord,pathInput=pathInput, pathOutput=pathOutput,
+                                       country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI,
+                                       filex_temp=filex_temp, Planting_month_date=Planting_month_date,Harvest_month_date=Harvest_month_date, 
+                                       ID=ID,season =season, plantingWindow=plantingWindow,varietyid=varietyids[1], zone =zones[1], level2=level2, 
+                                       fertilizer=fertilizer,geneticfiles=geneticfiles,index_soilwat=index_soilwat,pathIn_zone =pathIn_zone)
 
 ## Scripts for use of remote sensing for crop type mapping will be added soon
