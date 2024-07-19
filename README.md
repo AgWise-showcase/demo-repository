@@ -49,7 +49,7 @@ The following is an example of how to obtain information in DSSAT format for Rwa
 
 To get the soil data in DSSAT format, you must have a soil.sol file as a template for creating the different soil data by location. The template soil data is located in the [Data and Landing folder of the example simulation](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/soil.sol)
 
-#### Create experimental file in DSSAT format
+#### Create the experimental files in DSSAT format
 The function `dssat.expfile` available in [Script/Optimal_Planting/generic/2_dssat_expfile_zone.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/2_dssat_expfile_zone.R) creates an experimental file based on a [template experimental file](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/KEAG8104.MZX). The function allows you to have different weekly planting dates (_plantingWindow_) based on an initial planting date (_Planting_month_date_). You can add fertilizer applications for each planting as long as it is initially defined in the template file (_fertilizer=F_). The function starts the simulations and field capacity one month before planting; however, if you want to modify the initial soil water content, you can change the parameter _index_soilwat_ with 1 representing field capacity and 0 wilting point. Finally, you can change the variety ID (_varietyid_) you want to simulate. The ID of the variety should be available in the [template cultivar file of DSSAT](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/Landing/DSSAT/MZCER048.CUL). Below there is an example of how to obtain a experimental file for a given zone and variety. A whole example for the country is available at [/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/2_create_Experimental_File_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/2_create_Experimental_File_RAB_Maize.R)   
       
       source("~/Script/Optimal_Planting/generic/2_dssat_expfile_zone.R")
@@ -85,5 +85,9 @@ The function `dssat.expfile` available in [Script/Optimal_Planting/generic/2_dss
                                        filex_temp=filex_temp, Planting_month_date=Planting_month_date,Harvest_month_date=Harvest_month_date, 
                                        ID=ID,season =season, plantingWindow=plantingWindow,varietyid=varietyids[1], zone =zones[1], level2=level2, 
                                        fertilizer=fertilizer,geneticfiles=geneticfiles,index_soilwat=index_soilwat,pathIn_zone =pathIn_zone)
+
+#### Run the simulations in DSSAT
+The function `dssat.exec` available in [Script/Optimal_Planting/generic/3_dssat_exec.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/3_dssat_exec.R) creates 
+
 
 ## Scripts for use of remote sensing for crop type mapping will be added soon
