@@ -24,7 +24,7 @@
 
 
 #You need to modify the path that contains the source code in the generic folder (/Script/Optimal_Planting/generic)
-source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/dssat_expfile_zone.R")
+source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/2_dssat_expfile_zone.R")
 
 #The following parameters of the function can be modified based on your use case
 country <- "Rwanda"
@@ -33,7 +33,7 @@ Crop <-  "Maize"
 AOI = TRUE
 season=1
 level2 <- NA
-varietyid <- "890011"
+varietyids <- c("890011","890012","890013")
 pathIn_zone = TRUE
 filex_temp <- "KEAG8104.MZX"
 Planting_month_date="03-01"
@@ -51,13 +51,18 @@ pathInput <- paste("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Data/Optima
 pathOutput <- "D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Data/Optimal_Planting"
 
 
-zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyid, sep=""))
+zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyids[1], sep=""))
+zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyids[1], "/", zones, sep=""))$isdir]
 
+# Exclude the "gadm" folder in case the shapefiles of the country has been downloaded it 
+zones <- zones[zones != "gadm"]
 
-for (i in 1:length(zones)){
+for (i in 1:length(varietyids)){ 
+  for (j in 1:length(zones)){
     expdata_AOI <- dssat.expfile(path_coord=path_coord,pathInput=pathInput, pathOutput=pathOutput,
                                  country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI,
                                  filex_temp=filex_temp, Planting_month_date=Planting_month_date,Harvest_month_date=Harvest_month_date, 
-                                 ID=ID,season =season, plantingWindow=plantingWindow,varietyid=varietyid, zone =zones[i], level2=level2, 
+                                 ID=ID,season =season, plantingWindow=plantingWindow,varietyid=varietyids[i], zone =zones[j], level2=level2, 
                                  fertilizer=fertilizer,geneticfiles=geneticfiles,index_soilwat=index_soilwat,pathIn_zone =pathIn_zone)
   }
+}

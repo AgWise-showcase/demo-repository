@@ -13,7 +13,7 @@
 #'        
 
 #You need to modify the path that contains the source code in the generic folder (/Script/Optimal_Planting/generic)
-source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/dssat_exec.R")
+source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/3_dssat_exec.R")
 
 
 #Also, change the path where you want to save your outputs (pathOutput) which should be the same that in the example code 1_get_Weather_Soil_data_RAB_Maize.R
@@ -25,15 +25,21 @@ useCaseName <- "RAB"
 Crop <-  "Maize"
 AOI = TRUE
 TRT <-1:2
-varietyid <- "890011"
+varietyids <- c("890011","890012","890013")
 level2 <- NA
 #Specify the path where the executable/binary file of DSSAT is located (you neeed to install DSSAT before running the simulations)
 path_DSSAT <-"C:/DSSAT48/DSCSM048.EXE"
 
 
-zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyid, sep=""))
+zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyids[1], sep=""))
+zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyid[1], "/", zones, sep=""))$isdir]
 
-for (i in 1:length(zones)){
+# Exclude the "gadm" folder in case the shapefiles of the country has been downloaded it 
+zones <- zones[zones != "gadm"]
+
+for (i in 1:length(varietyids)){
+  for (j in 1:length(zones)){
     execmodel_AOI <-dssat.exec(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI,
-                               TRT=TRT,varietyid=varietyid, zone=zones[i], level2=level2,path_DSSAT=path_DSSAT)
+                               TRT=TRT,varietyid=varietyids[i], zone=zones[j], level2=level2,path_DSSAT=path_DSSAT)
+  }
 }

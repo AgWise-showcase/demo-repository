@@ -17,7 +17,7 @@ library(geodata)
 #' @return weather and soil data in DSSAT format
 
 #You need to modify the path that contains the source code in the generic folder (/Script/Optimal_Planting/generic)
-source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/readGeo_CM_zone.R")
+source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/1_readGeo_CM_zone.R")
 
 #The following parameters of the function can be modified based on your use case
 country <- "Rwanda"
@@ -26,7 +26,7 @@ Crop <-  "Maize"
 AOI = TRUE
 season=1
 level2 <- NA
-varietyid <- "890011"
+varietyids <- c("890011","890012","890013")
 pathIn_zone = TRUE
 
 #Change the path with the weather and soil data in R format (RDS, e.g.: Rainfall_Season_1_PointData_AOI.RDS) (pathInput) 
@@ -38,9 +38,32 @@ pathOutput <- "D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Data/Optimal_Pla
 #Identify the regions (zones, NAME_1) that you want to obtain the weather and soil data 
 countryShp <- geodata::gadm(country, level = 1, path='.')
 zones <- unique(countryShp$NAME_1)
+for (j in 1:length(varietyids)){
+  if (j>1) {
+    # Define source and target directories
+    if(AOI==TRUE){
+      source_dir <- paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, "/transform/DSSAT/AOI/", varietyids[j-1], sep="")
+      target_dir <- paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, "/transform/DSSAT/AOI/", varietyids[j], sep="")
+    }else{
+      source_dir <- paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, "/transform/DSSAT/fieldData/", varietyids[j-1], sep="")
+      target_dir <- paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, "/transform/DSSAT/fieldData/", varietyids[j], sep="")
+    }
+    # Check if the source directory exists
+    if (dir.exists(source_dir)) {
+      # Copy the directory recursively
+      dir.create(target_dir, recursive = TRUE)
+      files_to_copy <- list.files(source_dir, full.names = TRUE)
+      file.copy(from = files_to_copy, to = target_dir, recursive = TRUE)
+    } else {
+      message("Source directory does not exist: ", source_dir)
+    }
+  } else{
+    for (i in 1:length(zones)){
+      readGeo_CM_zone(pathInput= pathInput,pathOutput = pathOutput, country = country, useCaseName = useCaseName, Crop = Crop, AOI = AOI, 
+                      season= season, zone =zones[i],level2=level2,varietyid[j] =varietyid,pathIn_zone = pathIn_zone)
+  }
 
-for (i in 1:length(zones)){
-readGeo_CM_zone(pathInput= pathInput,pathOutput = pathOutput, country = country, useCaseName = useCaseName, Crop = Crop, AOI = AOI, 
-                season= season, zone =zones[i],level2=level2,varietyid =varietyid,pathIn_zone = pathIn_zone)
+}
+
 }
 

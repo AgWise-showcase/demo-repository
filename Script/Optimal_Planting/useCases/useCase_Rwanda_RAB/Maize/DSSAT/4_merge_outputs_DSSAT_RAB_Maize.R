@@ -11,7 +11,7 @@
 
 
 #You need to modify the path that contains the source code in the generic folder (/Script/Optimal_Planting/generic)
-source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/merge_DSSAT_output.R")
+source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/4_merge_DSSAT_output.R")
 
 
 #Also, change the path where you want to save your outputs (pathOutput) which should be the same that in the example code 1_get_Weather_Soil_data_RAB_Maize.R
@@ -23,9 +23,10 @@ useCaseName <- "RAB"
 Crop <-  "Maize"
 AOI = TRUE
 season <- 1
-varietyids <- "890011"
+varietyids <- c("890011","890012","890013")
 zone_folder = TRUE
 level2_folder = FALSE
 
 
-merge_DSSAT_output(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI, season = season, varietyids=varietyids, zone_folder = zone_folder, level2_folder = level2_folder)
+merge_DSSAT_output(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI, season = season, 
+                   varietyids=varietyids, zone_folder = zone_folder, level2_folder = level2_folder)

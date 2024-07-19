@@ -13,7 +13,7 @@
 #' @param long_variety variety ID with long growing period duration
 
 #You need to modify the path that contains the source code in the generic folder (/Script/Optimal_Planting/generic)
-source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/dssat_summary_ONI.R")
+source("D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Script/Optimal_Planting/generic/5_dssat_summary_ONI.R")
 
 
 #Change the path where you want to save your outputs (pathOutput) which should be the same that in the example code 1_get_Weather_Soil_data_RAB_Maize.R
@@ -29,8 +29,8 @@ AOI = TRUE
 season <- 1
 Plot=TRUE
 short_variety <- "890011"
-medium_variety <- NA
-long_variety <- NA
+medium_variety <- "890012"
+long_variety <- "890013"
 
 
 get_ONI(pathOutput=pathOutput,path_coord=path_coord,country=country, useCaseName=useCaseName, Crop=Crop, AOI=AOI, 
