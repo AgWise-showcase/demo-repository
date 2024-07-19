@@ -60,7 +60,7 @@ for (j in 1:length(varietyids)){
   } else{
     for (i in 1:length(zones)){
       readGeo_CM_zone(pathInput= pathInput,pathOutput = pathOutput, country = country, useCaseName = useCaseName, Crop = Crop, AOI = AOI, 
-                      season= season, zone =zones[i],level2=level2,varietyid[j] =varietyid,pathIn_zone = pathIn_zone)
+                      season= season, zone =zones[i],level2=level2,varietyid =varietyids[j],pathIn_zone = pathIn_zone)
   }
 
 }
