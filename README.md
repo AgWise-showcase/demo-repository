@@ -115,7 +115,7 @@ The function `dssat.exec` available in [Script/Optimal_Planting/generic/3_dssat_
       #' @param path_DSSAT: Path where the executable/binary file of DSSAT is located (you need to install DSSAT before running the simulations).
       #' @param TRT is the number of treatments to be run from the experimental file
 
-      pathOutput <- "D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Data/Optimal_Planting"
+      pathOutput <- "~/Data/Optimal_Planting"
       country <- "Rwanda"
       useCaseName <- "RAB"
       Crop <-  "Maize"
@@ -133,5 +133,21 @@ The function `dssat.exec` available in [Script/Optimal_Planting/generic/3_dssat_
       execmodel_AOI <-dssat.exec(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI,
                                      TRT=TRT,varietyid=varietyids[1], zone=zones[1], level2=level2,path_DSSAT=path_DSSAT)
 
+#### Merge the DSSAT simulations
+The function `merge_DSSAT_output` available in [Script/Optimal_Planting/generic/4_merge_DSSAT_output.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/4_merge_DSSAT_output.R), merges all the outputs of the simulations in one file in RDS format. Below there is an example to merge the results in Rwanda which can also be found in [Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/4_merge_outputs_DSSAT_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/4_merge_outputs_DSSAT_RAB_Maize.R)
+
+      source("~/Script/Optimal_Planting/generic/4_merge_DSSAT_output.R")
+      pathOutput <- "~/Data/Optimal_Planting"
+
+      country <- "Rwanda"
+      useCaseName <- "RAB"
+      Crop <-  "Maize"
+      AOI = TRUE
+      season <- 1
+      varietyids <- c("890011","890012","890013")
+      zone_folder = TRUE
+      level2_folder = FALSE
+      merge_DSSAT_output(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI, season = season, 
+                         varietyids=varietyids, zone_folder = zone_folder, level2_folder = level2_folder)
 
 ## Scripts for use of remote sensing for crop type mapping will be added soon
