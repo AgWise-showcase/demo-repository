@@ -30,10 +30,10 @@ We estimated the optimal planting dates and cultivars per location based on wate
 The function `readGeo_CM_zone` available in [Script/Optimal_Planting/generic/1_readGeo_CM_zone.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/1_readGeo_CM_zone.R) reads input data in R format (RDS) for each location that we want to simulate. For details on how to organize the weather and soil data, see the example data in the following folder [Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/raw/geo_4cropModel/Amajyaruguru](https://github.com/AgWise-showcase/demo-repository/tree/Optimal_Planting/Data/Optimal_Planting/useCase_Rwanda_RAB/Maize/raw/geo_4cropModel/Amajyaruguru). We use the [DSSAT package](https://cran.r-project.org/web/packages/DSSAT/index.html) available in R to convert the information from RDS to DSSAT format. 
 The following is an example of obtaining information for Rwanda in DSSAT format. We also include a brief explanation of the parameters of the function. See the whole example to run the country at [/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R):
 
-      #' @param pathInput Path with all the weather and soil input data in R (RDS) format (e.g. D:/datasourcing/Data/useCase_Rwanda_RAB/Potato/result/geo_4cropModel)
-      #' @param pathOutput Main path where the weather and soil data in DSSAT format will be created
-      #' @param country country name
-      #' @param useCaseName use case name  name
+      #' @param pathInput: Path with all the weather and soil input data in R (RDS) format (e.g. D:/datasourcing/Data/useCase_Rwanda_RAB/Potato/result/geo_4cropModel)
+      #' @param pathOutput: Main path where the weather and soil data in DSSAT format will be created
+      #' @param country: Country where the simulations are created for
+      #' @param useCaseName: use case name  name
       #' @param Crop the name of the crop to be used in creating file name to write out the result.
       #' @param AOI True if the data is required for target area, and false if it is for trial sites
       #' @param season when data is needed for more than one season, this needs to be provided to be used in the file name
