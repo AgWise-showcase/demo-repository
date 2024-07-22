@@ -31,7 +31,7 @@ The function `readGeo_CM_zone` available in [Script/Optimal_Planting/generic/1_r
 The following is an example of obtaining information for Rwanda in DSSAT format. We also include a brief explanation of the function's parameters. See the whole example to run the country at [/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/1_get_Weather_Soil_data_RAB_Maize.R):
 
       #' @param pathInput: Path with all the weather and soil input data in R (RDS) format (e.g. D:/datasourcing/Data/useCase_Rwanda_RAB/Potato/result/geo_4cropModel)
-      #' @param pathOutput: Main path where the weather and soil data in DSSAT format will be created
+      #' @param pathOutput: Main path where the weather and soil data in DSSAT format will be created.
       #' @param country: Country where the simulations are created for
       #' @param useCaseName: Name of the use case or project
       #' @param Crop: Name of the crop that will be simulated.
@@ -110,7 +110,28 @@ The function `dssat.expfile` available in [Script/Optimal_Planting/generic/2_dss
                                        fertilizer=fertilizer,geneticfiles=geneticfiles,index_soilwat=index_soilwat,pathIn_zone =pathIn_zone)
 
 #### Run the simulations in DSSAT
-The function `dssat.exec` available in [Script/Optimal_Planting/generic/3_dssat_exec.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/3_dssat_exec.R) creates 
+The function `dssat.exec` available in [Script/Optimal_Planting/generic/3_dssat_exec.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/generic/3_dssat_exec.R) runs the model based on the weather, soil and experimental files created on the previous steps. An example of running the model in Rwanda is presented below. A whole example for the country is available at [Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/3_run_DSSAT_model_RAB_Maize.R](https://github.com/AgWise-showcase/demo-repository/blob/Optimal_Planting/Script/Optimal_Planting/useCases/useCase_Rwanda_RAB/Maize/DSSAT/3_run_DSSAT_model_RAB_Maize.R)
+
+      #' @param path_DSSAT: Path where the executable/binary file of DSSAT is located (you need to install DSSAT before running the simulations).
+      #' @param TRT is the number of treatments to be run from the experimental file
+
+      pathOutput <- "D:/OneDrive - CGIAR/agwise/DSSAT/demo-repository/Data/Optimal_Planting"
+      country <- "Rwanda"
+      useCaseName <- "RAB"
+      Crop <-  "Maize"
+      AOI = TRUE
+      TRT <-1:2
+      varietyids <- c("890011","890012","890013")
+      level2 <- NA
+      #Specify the path where the executable/binary file of DSSAT is located (you neeed to install DSSAT before running the simulations)
+      path_DSSAT <-"C:/DSSAT48/DSCSM048.EXE"
+      
+      zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyids[1], sep=""))
+      zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyid[1], "/", zones, sep=""))$isdir]
+      zones <- zones[zones != "gadm"]
+
+      execmodel_AOI <-dssat.exec(pathOutput=pathOutput,country=country, useCaseName=useCaseName, Crop=Crop, AOI = AOI,
+                                     TRT=TRT,varietyid=varietyids[1], zone=zones[1], level2=level2,path_DSSAT=path_DSSAT)
 
 
 ## Scripts for use of remote sensing for crop type mapping will be added soon
