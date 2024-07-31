@@ -1,64 +1,67 @@
 ##############################################################################################
-## 1. source paclkages and fucntions needed for teh analytics
+## 1. source packages and functions needed for the analytics
 ##############################################################################################
 rm(list=ls())
 packages_required <- c("plyr", "tidyverse", "ggplot2", "foreach","doParallel","MuMIn","ggpmisc","sf","cluster","h2o",
-                       "limSolve", "lpSolve", "Rquefts", "rgdal", "randomForest","ranger","Metrics", "factoextra")
+                       "limSolve", "lpSolve", "Rquefts", "rgdal", "randomForest","ranger","Metrics", "factoextra", "git2r")
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
   install.packages(packages_required[!installed_packages])}
 suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
 
 
-source("~/agwise-responsefunctions/dataops/responsefunctions/Scripts/generic/QUEFTS_functions.R")
-
-
 #################################################################################################################
-# 2. give path for input data and where to write results and define use case essentials 
+# 2.Get the current script's directory
 #################################################################################################################
-country <- "Rwanda"
-useCaseName <- "RAB"
-Crop <- "Potato"
 
+# Initialize the repository: yo need to adjust "D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/" to your file structure
+repo <- repository("D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/demo-repository")
 
-pathInFieldData <- paste("~/agwise-responsefunctions/dataops/responsefunctions/Data/useCase_", country, "_", useCaseName, "/", Crop, "/raw/", sep="")
-pathIn2 <- paste("~/agwise-datasourcing/dataops/datasourcing/Data/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/", sep="")
-pathOut1 <- paste("~/agwise-responsefunctions/dataops/responsefunctions/Data/useCase_", country, "_", useCaseName, "/", Crop, "/transform/", sep="")
-if (!dir.exists(pathOut1)){
-  dir.create(file.path(pathOut1), recursive = TRUE)
+# Get the working directory of the repository
+repo_root <- workdir(repo)
+
+# Specify the absolute path of your files
+input_path <- "Data/Fertilizer_recom/"
+geoSpatialData_path <- "Data/geospatial/"
+output_path <- "Data/Fertilizer_recom/Intermediate/"
+generic_scriptpath <- "Script/Fertilizer_recom/"
+
+data_realtive_path <- sub(repo_root, "", input_path)
+data_full_path <- file.path(repo_root, data_realtive_path)
+
+gs_realtive_path <- sub(repo_root, "", geoSpatialData_path)
+gs_full_path <- file.path(repo_root, gs_realtive_path)
+
+result_realtive_path <- sub(repo_root, "", output_path)
+result_full_path <- file.path(repo_root, result_realtive_path)
+
+script_realtive_path <- sub(repo_root, "", generic_scriptpath)
+script_full_path <- file.path(repo_root, script_realtive_path)
+
+# create a folder for result
+if (!dir.exists(result_full_path)){
+  dir.create(file.path(result_full_path), recursive = TRUE)
 }
-
-
 
 
 #################################################################################################################
 # 3. read data 
 #################################################################################################################
-## field data
-ds <- unique(readRDS(paste(pathInFieldData, "compiled_fieldData.RDS", sep="")))
-soil <- unique(readRDS(paste(pathInFieldData, "Soil_PointData_trial.RDS", sep="")))
-Topo <- unique(readRDS(paste(pathInFieldData, "Topography_AEZ_trial.RDS", sep="")))
-AEZ <- readOGR(dsn=paste(pathIn2, "/AEZ", sep=""),  layer="AEZ_DEM_Dissolve")
+country <- "Rwanda"
+useCaseName <- "RAB"
+Crop <- "Potato"
+ds <- readRDS(paste0(data_full_path, "/modelReady.RDS"))
+Soil_PointData_AOI <- readRDS(paste0(data_full_path, "/Soil_PointData_AOI.RDS"))
+Topo <-  readRDS(paste0(data_full_path, "/topoData_AOI.RDS"))
+AEZ <- readOGR(dsn=gs_full_path,  layer="AEZ_DEM_Dissolve")
+rwlake <- st_read(paste0(gs_full_path, "/RWA_Lakes_NISR.shp"))
+
+
 
 
 #################################################################################################################
-# 3. data wrangling and visualizing 
+# 4. data wrangling and visualizing 
 #################################################################################################################
-
-ds <- subset(ds, select=-c(yieldEffectraw, yieldEffectBlup,refY, refYBLUP))
-#plot showing yield ranges by experiment and season:
-ds %>%
-  ggplot(aes(x = season, y = TY)) +
-  geom_boxplot() +
-  facet_wrap(~expCode, scales="free_y", ncol=1) +
-  coord_flip()+
-  theme_gray()+
-  ylab("\nPotato tuber yield [t/ha]")+
-  theme(axis.title.x = element_text(size = 15, face="bold"),
-        axis.title.y = element_blank(),
-        axis.text = element_text(size = 14),
-        strip.text = element_text(size = 14, face="bold", hjust=0))
-
 ds <- ds %>% 
   dplyr::mutate(Experiment = if_else(expCode == "IFDC", "Exp-1", 
                                      if_else(expCode == "SA-VAP-1", "Exp-2", "Exp-3"))) %>% 
@@ -121,15 +124,12 @@ ds %>%
 
 
 #map with trial locations:
-country <- "Rwanda"
 rwshp0 <- st_as_sf(geodata::gadm(country, level = 0, path='.'))
 rwshp1 <- st_as_sf(geodata::gadm(country, level = 1, path='.'))
 rwshp2 <- st_as_sf(geodata::gadm(country, level = 2, path='.'))
 rwshp3 <- st_as_sf(geodata::gadm(country, level = 3, path='.'))
 rwshp4 <- st_as_sf(geodata::gadm(country, level = 4, path='.'))
-rwlake <- st_read("~/agwise-datasourcing/dataops/datasourcing/Data/useCase_Rwanda_RAB/Maize/Landing/Lakes/RWA_Lakes_NISR.shp")
-rwAEZ <- readOGR(dsn="~/agwise-datasourcing/dataops/datasourcing/Data/useCase_Rwanda_RAB/Maize/Landing/AEZ",  layer="AEZ_DEM_Dissolve")
-rwAEZ <- rwAEZ[rwAEZ$Names_AEZs %in% c("Birunga", "Congo-Nile watershed divide", "Buberuka highlands"),]
+rwAEZ <- AEZ[AEZ$Names_AEZs %in% c("Birunga", "Congo-Nile watershed divide", "Buberuka highlands"),]
 RW_aez <- spTransform(rwAEZ, CRS( "+proj=longlat +ellps=WGS84 +datum=WGS84"))
 rwAEZ <- st_as_sf(RW_aez)
 rwAEZ$Names_AEZs
@@ -158,37 +158,18 @@ ggplot()+
         legend.title = element_text(size=12, face="bold"),
         legend.text = element_text(size=12))
 
-## soil, totpo and AEZ data
-soil[soil$ID == "IFDC_3", ]$NAME_1 <- "Amajyaruguru"
-soil[soil$ID == "IFDC_3", ]$NAME_2 <- "Burera"
-Topo[Topo$ID == "IFDC_3", ]$NAME_1 <- "Amajyaruguru"
-Topo[Topo$ID == "IFDC_3", ]$NAME_2 <- "Burera"
-Topo[Topo$ID == "SATLRW475382409484", ]$NAME_1 <- "Iburengerazuba"
-Topo[Topo$ID == "SATLRW475382409484", ]$NAME_2 <- "Rubavu"
+
 RW_aez <- spTransform(AEZ, CRS( "+proj=longlat +ellps=WGS84 +datum=WGS84"))
-gpsPoints <- soil[, c("longitude", "latitude")]
+gpsPoints <- Soil_PointData_AOI[, c("longitude", "latitude")]
 gpsPoints$longitude <- as.numeric(gpsPoints$longitude)
 gpsPoints$latitude <- as.numeric(gpsPoints$latitude)
 RAW_AEZ_trial <- suppressWarnings(raster::extract(RW_aez, gpsPoints[, c("longitude", "latitude")]))
 
-RAW_AEZ_trial <- RAW_AEZ_trial %>%
-  dplyr::select(c(Names_AEZs)) %>%
-  cbind(soil[, c("ID", "longitude", "latitude")])
-
-
-
-AEZ_Topo <- RAW_AEZ_trial %>%
-  left_join(Topo)
-
-ds_topo <- merge(ds, AEZ_Topo, by.x=c( "TLID",  "lon","lat") ,by.y=c("ID", "longitude", "latitude"))
-
-
-### characterizing the soil properties within AEZ
-RAW_AEZ_trial <- suppressWarnings(raster::extract(RW_aez, gpsPoints[, c("longitude", "latitude")]))
 dsoil_topo <-  RAW_AEZ_trial %>%
   dplyr::select(c(Names_AEZs)) %>%
-  cbind(soil) %>% 
-  left_join(Topo[, c("ID", "altitude", "slope", "TPI", "TRI", "AltClass")])
+  cbind(Soil_PointData_AOI) %>% 
+  left_join(Topo)
+
 dsoil_topoL <- dsoil_topo %>% 
   gather(variable, value, c_tot_top:TRI) 
 dsoil_topoL <- droplevels(dsoil_topoL[!dsoil_topoL$variable %in% c("texture_class_bottom", "texture_class_top", "NAME_1", "NAME_2"),])
@@ -200,6 +181,7 @@ dsoil_topoL$value = as.numeric(dsoil_topoL$value)
 ################################################################
 # 4. Running reverse QUEFTS  to get apparent soil nutrient supply
 ################################################################
+source(paste0(script_full_path, "/generic/QUEFTS_functions.R"))
 ## get soil INS
 supply <- NULL
 for(i in unique(ds$TLID)){
@@ -226,12 +208,14 @@ for(i in unique(ds$TLID)){
   }
 }
 
-saveRDS(supply, paste(pathOut1, "soilINS_revQUEFTS.RDS", sep=""))
+saveRDS(supply, paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))
+
+supply <- readRDS(paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))
 
 ################################################################
-# 5. investigat  the estimated soil NPK supply 
+# 5. investigate the estimated soil NPK supply 
 ###############################################################
-## merge supply wih the data
+## merge supply with the data
 INS <- supply %>%
   left_join(ds %>% dplyr::select(TLID, lat, lon, Experiment, season) %>% unique()) %>%
   mutate(lat = as.numeric(lat),
@@ -267,7 +251,7 @@ INS %>%
         strip.text = element_text(size = 14, face="bold"))
 
 ## set maximal N to 250,  and K supply to 525 and maximal P supply to 150 kg ha-1. 
-## this is done based on expert knowl;edge of the soils in the target area and data evaluation.  
+## this is done based on expert knowledge of the soils in the target area and data evaluation.  
 INS$N_base_supply <- ifelse(INS$N_base_supply > 250, 250,  INS$N_base_supply)
 INS$K_base_supply <- ifelse(INS$K_base_supply > 525, 525,  INS$K_base_supply)
 INS$P_base_supply <- ifelse(INS$P_base_supply > 150, 150,  INS$P_base_supply)
