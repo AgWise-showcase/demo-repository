@@ -55,7 +55,7 @@ Soil_PointData_AOI <- readRDS(paste0(data_full_path, "/Soil_PointData_AOI.RDS"))
 Topo <-  readRDS(paste0(data_full_path, "/topoData_AOI.RDS"))
 AEZ <- readOGR(dsn=gs_full_path,  layer="AEZ_DEM_Dissolve")
 rwlake <- st_read(paste0(gs_full_path, "/RWA_Lakes_NISR.shp"))
-
+source(paste0(script_full_path, "/generic/QUEFTS_functions.R"))
 
 
 
@@ -181,7 +181,7 @@ dsoil_topoL$value = as.numeric(dsoil_topoL$value)
 ################################################################
 # 4. Running reverse QUEFTS  to get apparent soil nutrient supply
 ################################################################
-source(paste0(script_full_path, "/generic/QUEFTS_functions.R"))
+
 ## get soil INS
 supply <- NULL
 for(i in unique(ds$TLID)){
@@ -208,9 +208,9 @@ for(i in unique(ds$TLID)){
   }
 }
 
-saveRDS(supply, paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))
+saveRDS(supply, paste0(result_full_path, "/soilINS_revQUEFTS.RDS"))
 
-supply <- readRDS(paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))
+supply <- readRDS(paste0(result_full_path, "/soilINS_revQUEFTS.RDS"))
 
 ################################################################
 # 5. investigate the estimated soil NPK supply 
@@ -257,10 +257,144 @@ INS$K_base_supply <- ifelse(INS$K_base_supply > 525, 525,  INS$K_base_supply)
 INS$P_base_supply <- ifelse(INS$P_base_supply > 150, 150,  INS$P_base_supply)
 
 
+###################################################
+## use the supply and estimate yield estimate to validate QUEFTS
+## at the same time estimate yield with blanket recommendation 
+###################################################
+ds_validate <- unique(ds[, c("treat", "N",  "P","K", "blup", "TLID", "expCode", "refTreat")])
+ds_validate$index <- c(1:nrow(ds_validate))
+
+supply_Qy <- NULL
+for (i in unique(ds_validate$index)){
+  print(i)
+  tdata1 <- ds_validate[ds_validate$index == i, ]
+  tdata2 <- supply[supply$TLID==tdata1$TLID, ]
+  
+  ## attainable yield in t/ha and dry wt.
+  yya <- tdata2$Ya
+  
+  
+  if(nrow(tdata2) > 0){
+    tdata1$yieldQUEFTS <- runQUEFTS(nut_rates = data.frame(N=tdata1$N, P=tdata1$P, K=tdata1$K),
+                                    supply = c(tdata2$N_base_supply, tdata2$P_base_supply, tdata2$K_base_supply),
+                                    crop = Crop,
+                                    Ya = yya,
+                                    SeasonLength = SeasonLength)
+    
+    ## 300 kg NPK171717 will add 51 kg N, 22.2 kg P and 42 kg K. how much yield can be obtained according to QUEFTS with blanket advice
+    tdata1$yieldBR <- runQUEFTS(nut_rates = data.frame(N=51, P=22.2, K=42),
+                                supply = c(tdata2$N_base_supply, tdata2$P_base_supply, tdata2$K_base_supply),
+                                crop = Crop,
+                                Ya = yya,
+                                SeasonLength = SeasonLength)
+    
+    ## yield at zero NPK input 
+    tdata1$yieldZero <- runQUEFTS(nut_rates = data.frame(N=0, P=0, K=0),
+                                  supply = c(tdata2$N_base_supply, tdata2$P_base_supply, tdata2$K_base_supply),
+                                  crop = Crop,
+                                  Ya = yya,
+                                  SeasonLength = SeasonLength)
+    
+    
+    
+    # from dry matter to fresh weight
+    tdata1$yieldQUEFTS <- (tdata1$yieldQUEFTS / 0.21)
+    tdata1$yieldBR <- (tdata1$yieldBR / 0.21)
+    tdata1$yieldZero <- (tdata1$yieldZero / 0.21)
+    
+    supply_Qy <- rbind(supply_Qy, tdata1)
+  }
+}
+
+saveRDS(supply_Qy, paste(result_full_path, "supply_Qy.RDS", sep=""))
+
+ds_sdt <- ds %>%
+  left_join(supply_Qy[, c("treat","TLID", "expCode", "yieldQUEFTS", "yieldBR", "yieldZero")]) 
+
+ggC <- ggplot(ds_sdt, aes(blup, yieldQUEFTS/1000)) +
+  geom_point() +
+  geom_abline() +
+  ggpmisc::stat_poly_line(formula = y ~ x, se = F) +
+  ggpmisc::stat_poly_eq(use_label(c("eq", "R2")),
+                        formula = y ~ x, size = 6,
+                        label.y = .975) +
+  xlab("Observed yield (t/ha)") + ylab("  yield predicted using QUEFTS estimatreds soil INS (t/ha)") +
+  theme_bw() +
+  theme(axis.text= element_text(size=12))
+
 
 ################################################################
 # 6. aggregate the soil supply at AEZ zones and predict yield  
 ###############################################################
+gpsPoints <- unique(INS[, c("lon", "lat")])
+gpsPoints$longitude <- as.numeric(gpsPoints$lon)
+gpsPoints$latitude <- as.numeric(gpsPoints$lat)
+ANS_AEZ <- suppressWarnings(raster::extract(RW_aez, gpsPoints[, c("longitude", "latitude")]))
+
+ANS_AEZ <- ANS_AEZ %>%
+  dplyr::select(c(Names_AEZs)) %>%
+  dplyr::rename(AEZ = Names_AEZs) %>% 
+  cbind(gpsPoints[, c("lon", "lat")])
+
+
+INS <- INS %>%
+  left_join(ANS_AEZ) %>% 
+  dplyr::filter(AEZ %in% c("Birunga", "Buberuka highlands", "Congo-Nile watershed divide"))
+
+INS <- INS %>%
+  left_join(supply_Qy[, c("TLID",  "yieldBR", "yieldZero")]) %>% 
+  unique()
+
+
+summary(INS$Ya )## is still in dry wt and in kg/ha so no need to chance it 
+median_ANS_AEZ <- ddply(INS, .(AEZ), summarize, 
+                        Ya = median(Ya),
+                        N_med_ANS = median(N_base_supply), 
+                        P_med_ANS = median(P_base_supply), 
+                        K_med_ANS = median(K_base_supply),
+                        Y_BR = median(yieldBR),
+                        Y0 = median(yieldZero))
+
+## setting all yield to dry weight 
+median_ANS_AEZ$Y_BR <- median_ANS_AEZ$Y_BR*0.21
+median_ANS_AEZ$Y0 <- median_ANS_AEZ$Y0*0.21
+
+###########################################################
+## Calculate what yield the current blanket recommendation (6 bags (300 kg) of NPK 171717/ha) 
+###########################################################
+# data.frame(type = c("DAP", "Urea", "NPK"), Ncont =c(18, 46, 17), Pcont=c(20, 0, 7.4), Kcont=c(0,0,14), price=c(722, 640,654))
+
+my_ferts <- data.frame(group = "synthetic", name = c("DAP", "Urea", "NPK"), 
+                       N = c(18, 46, 17), P = c(20, 0, 7.4), K = c(0,0,14))
+
+fertrecom_aez <- NULL
+for(j in 1:nrow(median_ANS_AEZ)){
+  fertperc <- NULL
+  for(perc in seq(0, 0.5, 0.1)){
+    fertrecom1 <-   rec_targetdY_pot(my_ferts=my_ferts, 
+                                     dY = perc, 
+                                     target = "relative", 
+                                     start = rep(0, nrow(my_ferts)), 
+                                     supply = c(median_ANS_AEZ$N_med_ANS[j], median_ANS_AEZ$P_med_ANS[j], median_ANS_AEZ$K_med_ANS[j]),
+                                     att_GY = median_ANS_AEZ$Ya[j], 
+                                     GY_br = median_ANS_AEZ$Y_BR[j],
+                                     crop = "Potato",
+                                     SeasonLength = 120,
+                                     isBlanketRef = TRUE, 
+                                     df_link  = median_ANS_AEZ[j, ])
+    fertperc <- rbind(fertperc, fertrecom1)
+  }
+  fertrecom_aez <- rbind(fertrecom_aez, fertperc)
+}
+
+
+fertrecom_aez$Ya <- fertrecom_aez$Ya/0.21
+fertrecom_aez$Y_BR <- fertrecom_aez$Y_BR/0.21
+fertrecom_aez$Y0 <- fertrecom_aez$Y0/0.21
+
+dd_AEZ_0 <- fertrecom_aez[fertrecom_aez$yieldPercinc == "0 %", ]
+dd_AEZ_10 <- fertrecom_aez[fertrecom_aez$yieldPercinc == "10 %", ]
+dd_AEZ_20 <- fertrecom_aez[fertrecom_aez$yieldPercinc == "20 %", ]
 
 
 

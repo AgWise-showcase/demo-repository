@@ -116,53 +116,6 @@ revQUEFTS <- function(ds,
 
 
 
-revQUEFTS2 <- function(ds, 
-                       start = c(60, 10, 60, 10000), #starting values for INS, IPS and IKS for the optimisation algorithm.
-                       crop = c("Maize", "Potato", "Rice"), #crop to be defined by QUEFTS
-                       SeasonLength = 120){ #parameter important for the attainable yield estimation
-  
-  require("limSolve")
-  require("lpSolve")
-  
-  #build the function to optimise
-  qmo <- function(inputvalues, 
-                  ds = ds, 
-                  crop=crop, 
-                  SeasonLength=SeasonLength
-  ){
-    
-    #obtain QUEFTS yield estimates for each of the rows in ds
-    Yq <- runQUEFTS(nut_rates = subset(ds, select=c(N, P, K)),
-                    supply = inputvalues[1:3],
-                    crop = crop,
-                    Ya = inputvalues[4],
-                    SeasonLength = SeasonLength)
-    
-    #calculate the total sum of squared errors (SSE) against the observed yields:
-    SSE <- sum((Yq - ds$Y)**2)
-    
-    return(SSE)
-    
-  }
-  
-  #now performing the optimisation that minimises SSE:
-  result <- optim(c(start),
-                  #method = "L-BFGS-B",
-                  #lower = c(0, 0, 0),
-                  #upper = c(400, 400, 400),
-                  qmo,
-                  ds = ds,
-                  crop = crop,
-                  SeasonLength = SeasonLength,
-                  control = list(trace = TRUE))
-  
-  #return the vector with the optimal solution for soil N, P and K supply:
-  return(result$par)
-  
-}
-  
-
-
 #Alternative: run reverse QUEFTS in parallel on multiple CPUs
 #create a function to run revQUEFTS optimisation:
 ## TODO this is tested only for potato, need some work to be generic
@@ -199,19 +152,39 @@ calculate_supply <- function(TLID, Crop){
 
 
 
-rec_targetdY_maize <- function(my_ferts,
-                         dY,
-                         target = c("relative", "absolute"), #is dY relative or absolute?
-                         start = rep(50, nrow(my_ferts)), #starting values for the optimisation algorithm.
-                         supply, #indigenous nutrient supply
-                         crop = crop, #crop to be defined by QUEFTS
-                         att_GY, #attainable yield must be n dry wt
-                         GY_br, #blnaket recom yield must be in dry wt
-                         SeasonLength = 120,
-                         isBlanketRef = FALSE,
-                         df_link){ #parameter important for the attainable yield estimation
+
+
+#OPTIMISATION FUNCTION to calculate fertiliser rates to achieve a specified yield increase
+#Requires a set of fertilisers and the target yield increase specified in absolute or relative terms.
+#my_ferts = dataframe with fertiliser details similar to Rquefts::fertilizers()
+#dY = target yield increase in absolute terms or relative terms
+#     e.g., dY = 2000 and target = "absolute": calculates fertiliser rates required to increase yield by 2000 kg/ha;
+#     or, e.g., dY = 0.4 and target = "relative": calculates fertiliser rates required to increase yield by 40%.
+#start = start values for optimisation algorithm, set by default to 50 kg/ha for each fertiliser in my_ferts.
+##supply = vector with indigenous soil N, P and K supply in kg/ha
+#crop = crop for which to run Rquefts, by default "Maize"
+#Ya = attainable yield (without nutrient limitations) in kg/ha
+#SeasonLength = required parameter to estimate the attainable yield, default = 120 days
+#TODO: Other QUEFTS parameters can be added...
+#TODO: Requires improvement to improve stability across range of start values... 
+#      Currently attempts to minimise the total quantity of fertiliser
+#      May require constraints to avoid negative values or values below 25 kg/ha.
+
+
+rec_targetdY_pot <- function(my_ferts,
+                             dY,
+                             target = c("relative", "absolute"), #is dY relative or absolute?
+                             start = rep(1, nrow(my_ferts)), #starting values for the optimisation algorithm.
+                             supply, #indigenous nutrient supply
+                             crop = crop, #crop to be defined by QUEFTS
+                             att_GY, #attainable yield
+                             GY_br, #blnaket recom yield
+                             SeasonLength = 120,
+                             isBlanketRef = FALSE,
+                             df_link){ #parameter important for the attainable yield estimation
   
   
+  # df_link$Y_att <- att_GY * 1.2
   df_link$yieldPercinc <- paste(dY*100, " %", sep="")
   
   #calculate the control yield $for Rice. this is the yield estimated by QUEFTS for soil INS + blanket recommendation
@@ -229,15 +202,13 @@ rec_targetdY_maize <- function(my_ferts,
   #calculate the target yield
   if(dY == 0){
     GYt <- GY0
-    df_link$targetYield <- df_link$yieldBlanket
+    df_link$targetYield <- GY_br
   }else{
     GYt <- ifelse(target == "absolute", GY0 + dY, GY0 * (1 + dY))
     df_link$targetYield <- round(GY_br + (GY_br * dY), 2)
   }
   
-  
   if(GYt > att_GY){
-    
     # print("No solution available: yield target exceeds attainable yield.")
     fert_rates <- rep(NA, nrow(my_ferts))
     
@@ -274,248 +245,21 @@ rec_targetdY_maize <- function(my_ferts,
                     Ya = att_GY,
                     SeasonLength = SeasonLength)
     
-    #return the vector with the fertiliser rates to achieve the target:
+    #return the vector with the fertilizer rates to achieve the target:
     fert_rates <- result$par
+    
   }
   
-  df_link$DAP <- round(fert_rates[1],0)
-  df_link$Urea <- round(fert_rates[2], 0)
-  df_link$NPK_17_3 <- round(fert_rates[3],0)
+  frn <- data.frame(fert = my_ferts$name, rates=fert_rates)
+  dw <- spread(frn, fert, rates)
+  df_link <- cbind(df_link, dw)
+  
+  # df_link$DAP <- round(fert_rates[1], 0)
+  # df_link$Urea <- round(fert_rates[2], 0)
+  # df_link$NPK171717 <- round(fert_rates[3], 0)
   
   return(df_link)
   
 }
-
-
-
-
-#OPTIMISATION FUNCTION to calculate fertilizer rates to achieve a specified yield increase
-#Requires a set of fertilizers and the target yield increase specified in absolute or relative terms.
-#my_ferts = data frame with fertilizer details similar to Rquefts::fertilizers()
-#dY = target yield increase in absolute terms or relative terms
-#     e.g., dY = 2000 and target = "absolute": calculates fertiliser rates required to increase yield by 2000 kg/ha;
-#     or, e.g., dY = 0.4 and target = "relative": calculates fertiliser rates required to increase yield by 40%.
-#start = start values for optimisation algorithm, set by default to 50 kg/ha for each fertiliser in my_ferts.
-##supply = vector with indigenous soil N, P and K supply in kg/ha
-#crop = crop for which to run Rquefts, by default "Maize"
-#att_GY = attainable yield (without nutrient limitations) in kg/ha
-#SeasonLength = required parameter to estimate the attainable yield, default = 120 days
-# df_link: is the data frame continating all the other information on marshland and AEZ and used to attache ther fert rate
-#TODO: Other QUEFTS parameters can be added...
-#TODO: Requires improvement to improve stability across range of start values... 
-#      Currently attempts to minimise the total quantity of fertiliser
-#      May require constraints to avoid negative values or values below 25 kg/ha.
-
-
-
-# rec_targetdY <- function(my_ferts,
-#                          dY,
-#                          target = c("relative", "absolute"), #is dY relative or absolute? 
-#                          start = rep(1, nrow(my_ferts)), #starting values for the optimisation algorithm.
-#                          supply, #indigenous nutrient supply
-#                          crop = crop, #crop to be defined by QUEFTS
-#                          att_GY, #attainable yield
-#                          GY_br, #blnaket recom yield
-#                          SeasonLength = 120,
-#                          isBlanketRef = FALSE,
-#                          df_link){ #parameter important for the attainable yield estimation
-#   
-#   
-#   # df_link$Y_att <- att_GY * 1.2
-#   df_link$yieldPercinc <- paste(dY*100, " %", sep="")
-#  
-#   #calculate the control yield $for Rice. this is the yield estimated by QUEFTS for soil INS + blanket recommendation
-#   if(isBlanketRef == TRUE){
-#     GY0  <- GY_br
-#   }else{
-#     GY0 <- runQUEFTS(nut_rates = data.frame("N" = 0, "P" = 0, "K" = 0),
-#                      supply = supply,
-#                      crop = crop,
-#                      Ya = att_GY,
-#                      SeasonLength = SeasonLength)
-#   }
-#   
-#   
-#   #calculate the target yield
-#   if(dY == 0){
-#     GYt <- GY0
-#     df_link$targetYield <- df_link$Y_BR
-#   }else{
-#     GYt <- ifelse(target == "absolute", GY0 + dY, GY0 * (1 + dY))
-#     df_link$targetYield <- round(GY_br + (GY_br * dY), 2)
-#   }
-#   
-#   if(GYt > att_GY){
-#     # print("No solution available: yield target exceeds attainable yield.")
-#     fert_rates <- rep(NA, nrow(my_ferts))
-#     
-#   }else{
-#     
-#     #build the function to optimise
-#     qfo <- function(fert_rates,
-#                     my_ferts = my_ferts,
-#                     GYt = GYt,
-#                     supply = supply, 
-#                     crop = crop, 
-#                     Ya = att_GY,
-#                     SeasonLength=SeasonLength){
-#       
-#       GYq <- runQUEFTS(nut_rates = as.data.frame(as.list(nutrientRates(my_ferts, fert_rates))),
-#                        supply = supply,
-#                        crop = crop,
-#                        Ya = att_GY,
-#                        SeasonLength = SeasonLength)
-#       
-#       #set a value that minimises the yield difference with the control, and in addition...
-#       #minimises the total amount of fertiliser to apply (to ensure more stable results).
-#       return((GYq - GYt)**2 + sqrt(sum(fert_rates**2))) 
-#       
-#     }
-#     
-#     #now performing the optimisation that minimises the difference to the target yield:
-#     result <- optim(start,
-#                     qfo,
-#                     my_ferts = my_ferts,
-#                     GYt = GYt,
-#                     supply = supply,
-#                     crop = crop,
-#                     Ya = att_GY,
-#                     SeasonLength = SeasonLength)
-#     
-#     #return the vector with the fertilizer rates to achieve the target:
-#     fert_rates <- result$par
-#     
-#   }
-#   
-#   df_link$Urea <- round(fert_rates[1], 0)
-#   df_link$MOP <- round(fert_rates[2], 0)
-#   df_link$TSP <- round(fert_rates[3], 0)
-#   
-#   return(df_link)
-#   
-# }
-
-
-# #An example with a typical nutrient omission treatment design...
-# set.seed(777)
-# ds <- data.frame(treat = c("CON", "NPK", "NPK", "PK", "NK", "NP"),
-#                  N = c(0, 120, 120, 0, 120, 120),
-#                  P = c(0, 30, 30, 30, 0, 30),
-#                  K = c(0, 60, 60, 60, 60, 0),
-#                  Y = c(2000, 6000, 6000, 2500, 4500, 5500) + rnorm(6, 0, 500))
-# 
-# supply <- revQUEFTS(ds, crop="Potato", Ya = max(ds$Y)) #default starting values
-# supply <- revQUEFTS(ds, start = c(50, 50, 50), Ya = max(ds$Y)) #
-# supply
-# 
-# Yq <- runQUEFTS(nut_rates = subset(ds, select=c(N, P, K)),
-#                 supply = supply,
-#                 Ya = max(ds$Y),
-#                 crop = "Maize")
-# 
-# plot(Yq, ds$Y)
-# abline(0,1)
-# 
-# #An example to calculate nutrient-limited yield:
-# runQUEFTS(nut_rates = data.frame("N"=0, "P"=0, "K"=0),
-#           supply = c(90,50,130),
-#           crop = "Maize",
-#           Ya = 12000,
-#           SeasonLength = 120)
-
-#OPTIMISATION FUNCTION to calculate fertiliser rates to achieve a specified yield increase
-#Requires a set of fertilisers and the target yield increase specified in absolute or relative terms.
-#my_ferts = dataframe with fertiliser details similar to Rquefts::fertilizers()
-#dY = target yield increase in absolute terms or relative terms
-#     e.g., dY = 2000 and target = "absolute": calculates fertiliser rates required to increase yield by 2000 kg/ha;
-#     or, e.g., dY = 0.4 and target = "relative": calculates fertiliser rates required to increase yield by 40%.
-#start = start values for optimisation algorithm, set by default to 50 kg/ha for each fertiliser in my_ferts.
-##supply = vector with indigenous soil N, P and K supply in kg/ha
-#crop = crop for which to run Rquefts, by default "Maize"
-#Ya = attainable yield (without nutrient limitations) in kg/ha
-#SeasonLength = required parameter to estimate the attainable yield, default = 120 days
-#TODO: Other QUEFTS parameters can be added...
-#TODO: Requires improvement to improve stability across range of start values... 
-#      Currently attempts to minimise the total quantity of fertiliser
-#      May require constraints to avoid negative values or values below 25 kg/ha.
-
-rec_targetdY <- function(my_ferts,
-                         dY,
-                         target = c("relative", "absolute"), #is dY relative or absolute? 
-                         start = rep(50, nrow(my_ferts)), #starting values for the optimisation algorithm.
-                         supply, #indigenous nutrient supply
-                         crop, #crop to be defined by QUEFTS
-                         Ya, #attainable yield
-                         SeasonLength = 120){ #parameter important for the attainable yield estimation
-  
-  require("limSolve")
-  require("lpSolve")
-  
-  #calculate the control yield
-  Y0 <- runQUEFTS(nut_rates = data.frame("N" = 0, "P" = 0, "K" = 0),
-                  supply = supply,
-                  crop = crop,
-                  Ya = Ya,
-                  SeasonLength = SeasonLength)
-  
-  #calculate the target yield
-  Yt <- ifelse(target == "absolute", Y0 + dY, Y0 * (1 + dY))
-  
-  if(Yt > Ya){
-    
-    print("No solution available: yield target exceeds attainable yield.")
-    fert_rates <- rep(NA, nrow(my_ferts))
-    
-  }else{
-    
-    if(Yt < Y0){
-      
-      print("No fertilizer application required to achieve attainable yield.")
-      fert_rates <- rep(0, nrow(my_ferts))
-      
-    }else{
-      
-      #build the function to optimise
-      qfo <- function(fert_rates,
-                      my_ferts = my_ferts,
-                      Yt = Yt,
-                      supply = supply, 
-                      crop = crop, 
-                      Ya = Ya,
-                      SeasonLength=SeasonLength){
-        
-        Yq <- runQUEFTS(nut_rates = as.data.frame(as.list(nutrientRates(my_ferts, fert_rates))),
-                        supply = supply,
-                        crop = crop,
-                        Ya = Ya,
-                        SeasonLength = SeasonLength)
-        
-        #set a value that minimises the yield difference with the control, and in addition...
-        #minimises the total amount of fertiliser to apply (to ensure more stable results).
-        return((Yq - Yt)**2 + sqrt(sum(fert_rates**2))) 
-        
-      }
-      
-      #now performing the optimisation that minimises the difference to the target yield:
-      result <- optim(start,
-                      qfo,
-                      my_ferts = my_ferts,
-                      Yt = Yt,
-                      supply = supply,
-                      crop = crop,
-                      Ya = Ya,
-                      SeasonLength = SeasonLength)
-      
-      #return the vector with the fertiliser rates to achieve the target:
-      fert_rates <- result$par
-      
-    }  
-    
-  }
-  
-  return(fert_rates)
-  
-}
-
 
 
