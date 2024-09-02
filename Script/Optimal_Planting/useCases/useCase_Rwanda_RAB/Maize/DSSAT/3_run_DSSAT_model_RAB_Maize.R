@@ -32,7 +32,7 @@ path_DSSAT <-"C:/DSSAT48/DSCSM048.EXE"
 
 
 zones <- list.files(paste(pathOutput,"/useCase_", country, "_", useCaseName,"/", Crop, '/transform/DSSAT/AOI/',varietyids[1], sep=""))
-zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyid[1], "/", zones, sep=""))$isdir]
+zones <- zones[file.info(paste(pathOutput, "/useCase_", country, "_", useCaseName, "/", Crop, '/transform/DSSAT/AOI/', varietyids[1], "/", zones, sep=""))$isdir]
 
 # Exclude the "gadm" folder in case the shapefiles of the country has been downloaded it 
 zones <- zones[zones != "gadm"]
