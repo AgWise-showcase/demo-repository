@@ -137,22 +137,22 @@ get_ONI <- function(pathOutput,path_coord,country, useCaseName, Crop, AOI=TRUE, 
   oni <- read_table(paste0(destfile,file_name))
   
   # Reshape the ONI data
-  month_mapping <- c(
-    'DJF'= 'January',
-    'JFM'= 'February',
-    'FMA'= 'March',
-    'MAM'= 'April',
-    'AMJ'= 'May',
-    'MJJ'= 'June',
-    'JJA'= 'July',
-    'JAS'= 'August',
-    'ASO'= 'September',
-    'SON'= 'October',
-    'OND'= 'November',
-    'NDJ'= 'December'
+month_mapping <- c(
+    'DJF'= '01',
+    'JFM'= '02',
+    'FMA'= '03',
+    'MAM'= '04',
+    'AMJ'= '05',
+    'MJJ'= '06',
+    'JJA'= '07',
+    'JAS'= '08',
+    'ASO'= '09',
+    'SON'= '10',
+    'OND'= '11',
+    'NDJ'= '12'
   )
   oni$month <- month_mapping[oni$SEAS]
-  oni$date <- as.Date(paste0(oni$YR, "-", oni$month, "-01"), format="%Y-%B-%d")
+  oni$date <- as.Date(paste0(oni$YR, "-", oni$month, "-01"), format="%Y-%m-%d")
   
   ### 4.2.2. Get the aggregated DSSAT output and reshape the data ####
   # Open the aggregated DSSAT output
@@ -235,7 +235,7 @@ get_ONI <- function(pathOutput,path_coord,country, useCaseName, Crop, AOI=TRUE, 
   # Meand and SEM plot
   pd <- position_dodge(0.2)
   dssat_oni %>%
-    summarySE(measurevar="HWAH", groupvars=c("Variety","TNAM", "ENSO"))%>%
+    summarySE(measurevar="HWAH", groupvars=c("TNAM", "ENSO"))%>%
   ggplot(aes(x = TNAM, 
              y = HWAH, 
              group=ENSO, 
