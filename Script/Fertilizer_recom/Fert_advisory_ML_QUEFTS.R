@@ -7,7 +7,7 @@ rm(list=ls())
 # install.packages("rgdal", repos="http://R-Forge.R-project.org")
 
 packages_required <- c("plyr", "tidyverse", "ggplot2", "foreach","doParallel","MuMIn","ggpmisc","sf","cluster","h2o",
-                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal")
+                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal", "git2r")
 
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
@@ -15,7 +15,7 @@ if(any(installed_packages == FALSE)){
 suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
 
 #################################################################################################################
-# 2.Get the current script's directory
+# Define realtive directory
 #################################################################################################################
 
 # Initialize the repository: yo need to adjust "D:/OneDrive - CGIAR/AgWise/Dahsboard/AgWise_Demo/" to your file structure
@@ -55,13 +55,13 @@ if (!dir.exists(result_full_path)){
 country <- "Rwanda"
 useCaseName <- "RAB"
 Crop <- "Potato"
-ds <- readRDS(paste0(data_full_path, "/modelReady.RDS"))
-INS <- readRDS(paste0(data_full_path, "/modelReady_INS.RDS"))
-supply <- readRDS(paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))
-Soil_PointData_AOI <- readRDS(paste0(data_full_path, "/Soil_PointData_AOI.RDS"))
-topo <-  readRDS(paste0(data_full_path, "/topoData_AOI.RDS"))
-AEZ <- readOGR(dsn=gs_full_path,  layer="AEZ_DEM_Dissolve")
-rwlake <- st_read(paste0(gs_full_path, "/RWA_Lakes_NISR.shp"))
+ds <- readRDS(paste0(data_full_path, "/modelReady.RDS")) ## field data
+INS <- readRDS(paste0(data_full_path, "/modelReady_INS.RDS")) ## first you need to Fert_advisory_QUEFTS.R to get this data which is soil INS plus soil properties
+supply <- readRDS(paste0(data_full_path, "/soilINS_revQUEFTS.RDS"))## obtained from Fert_advisory_QUEFTS.R and has attainable yield and soil INS
+Soil_PointData_AOI <- readRDS(paste0(data_full_path, "/Soil_PointData_AOI.RDS"))## soil properties for area of interest (AOI)
+topo <-  readRDS(paste0(data_full_path, "/topoData_AOI.RDS")) ## topogaraphy data for aoi
+AEZ <- readOGR(dsn=gs_full_path,  layer="AEZ_DEM_Dissolve")# agroeclogy map of aoi
+rwlake <- st_read(paste0(gs_full_path, "/RWA_Lakes_NISR.shp"))# lake map
 
 ##############################################################################
 ### Machine learning model: to relate the soil nutrient supply from reverse QUEFTS to geo-spatial variables 
@@ -98,10 +98,12 @@ response_K <- "K_base_supply"
 predictors <- ins |> names()
 predictors <- predictors[!predictors %in% c("N_base_supply","P_base_supply","K_base_supply", "TLID", "blup", "season_AB")]
 
+
+## initialize h2o to fit ML models
 h2o.init()
 ML_inputData.h2o <- as.h2o(ins)
 
-#create a random training-test split of our data ## should be possible to do it by missing one
+#create a random training-test split of our data and optimize hyperparameters for gradient boosting meathod
 ML_inputData_split <- h2o.splitFrame(data = ML_inputData.h2o, ratios = 0.7, seed = 444)
 training_data <- ML_inputData_split[[1]]
 test_data <- ML_inputData_split[[2]]
@@ -483,19 +485,19 @@ ggsave(paste0(result_full_path, "/RQ_GB_Median_yield.pdf"), ggdiffANS, width=12,
 
 model_path_P <- paste0(result_full_path,"/GBM_model_R_1720435759070_4") ## if you train a new model "GBM_model_R_1720435759070_4" should be changed
 saved_model_P <- h2o.loadModel(model_path_P)
-P_local_model <- h2o.download_model(saved_model_P, path = pathOut)
+P_local_model <- h2o.download_model(saved_model_P, path = result_full_path)
 ML_gbm_P <- h2o.upload_model(P_local_model)
 
 
 model_path_N <- paste0(result_full_path,"/GBM_model_R_1720435759070_5")## if you train a new model "GBM_model_R_1720435759070_5" should be changed
 saved_model_N <- h2o.loadModel(model_path_N)
-N_local_mode <- h2o.download_model(saved_model_N, path = pathOut)
+N_local_mode <- h2o.download_model(saved_model_N, path = result_full_path)
 ML_gbm_N <- h2o.upload_model(N_local_mode)
 
 
 model_path_K <- paste0(result_full_path,"/GBM_model_R_1720435759070_6")## if you train a new model "GBM_model_R_1720435759070_6" should be changed
 saved_model_K <- h2o.loadModel(model_path_K)
-K_local_model <- h2o.download_model(saved_model_K, path = pathOut)
+K_local_model <- h2o.download_model(saved_model_K, path = result_full_path)
 ML_gbm_K <- h2o.upload_model(K_local_model)
 
 ## soil data for AOI
@@ -552,6 +554,7 @@ summary(tdata$P_pred)
 summary(tdata$K_pred)
 
 saveRDS(INS_AOI, paste0(result_full_path,"/soil_NPK_supply_AOI.RDS"))
+INS_AOI <- readRDS(paste0(result_full_path,"/soil_NPK_supply_AOI.RDS"))
 
 ############# plot the soil INS
 
@@ -801,6 +804,7 @@ rec <- clss %>%
   left_join(cls, relationship = "many-to-many")
 
 saveRDS(rec, paste0(result_full_path,"/Fertilizer_recommendations_potato_QUEFTS_ML.RDS"))
+rec <- readRDS(paste0(result_full_path,"/Fertilizer_recommendations_potato_QUEFTS_ML.RDS"))
 
 
 gg0 <- ggplot()+

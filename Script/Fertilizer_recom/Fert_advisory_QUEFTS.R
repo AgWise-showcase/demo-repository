@@ -69,8 +69,8 @@ ds <- ds %>%
   dplyr::mutate(trt =  ifelse(treat %in% c("NPK11","NPK_increased","NPK", "NPK_all"), "Reference", 
                               ifelse(treat == "N0P0K0", "Control" ,trt))) %>% 
   dplyr::mutate(trt2 =  ifelse(trt == "N0P0K0", "Control", trt)) %>%  
-  dplyr::mutate(Experiment = if_else(expCode == "IFDC", "Exp-1 (2014 B)", 
-                                     if_else(expCode == "SA-VAP-1", "Exp-2 (2021 A & B)", "Exp-3 (2022 A & B)")))
+  dplyr::mutate(Experiment = if_else(expCode == "IFDC", "Exp-1", 
+                                     if_else(expCode == "SA-VAP-1", "Exp-2", "Exp-3")))
 
 
 
@@ -81,7 +81,7 @@ ds %>%
   mutate(nutrient = factor(nutrient, levels=c("N", "P", "K"))) %>%
   ggplot(aes(rate, TY)) + 
   geom_point(alpha=.33, shape=16) +
-  facet_grid(nutrient ~ expCode+season) + 
+  facet_grid(nutrient ~ Experiment+season) + 
   xlab("\nFertilizer nutrient application rate [kg/ha]") +
   ylab("Observed tuber yield [kg/ha]\n") +
   theme(axis.title = element_text(size = 15, face="bold"),
@@ -89,6 +89,21 @@ ds %>%
         strip.text = element_text(size = 14, face="bold"))
 
 
+
+ds %>% 
+  gather(nutrient, rate, N:K) %>%
+  mutate(nutrient = factor(nutrient, levels=c("N", "P", "K"))) %>%
+  ggplot(aes(season, TY)) + 
+  geom_boxplot() +
+  facet_wrap(~Experiment, scales = "free_x") + 
+  xlab(" Season \n (b)") +
+  ylab("Potato tuber yield [t/ha]\n") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 15, face="bold"),
+        axis.text.y = element_text(size = 11),
+        axis.text.x = element_text(size = 11, angle=90, hjust=1, vjust=0.5),
+        strip.text = element_text(size = 14, face="bold"),
+        legend.position = "none")
 
 ds %>% 
   gather(nutrient, rate, N:K) %>%
@@ -112,7 +127,7 @@ ds %>%
   geom_density(alpha=.2, linewidth=1) +
   facet_wrap(~Experiment, scales="free_y", ncol=1) +
   theme_gray()+
-  xlab("\n (a) Potato tuber yield [t/ha]")+
+  xlab("Potato tuber yield [t/ha] \n (a) ")+
   ylab("Density")+
   theme_bw()+
   theme(axis.title = element_text(size = 15, face="bold"),
@@ -307,6 +322,7 @@ for (i in unique(ds_validate$index)){
 }
 
 saveRDS(supply_Qy, paste(result_full_path, "supply_Qy.RDS", sep=""))
+supply_Qy <- readRDS(paste(result_full_path, "supply_Qy.RDS", sep=""))
 
 ds_sdt <- ds %>%
   left_join(supply_Qy[, c("treat","TLID", "expCode", "yieldQUEFTS", "yieldBR", "yieldZero")]) 
@@ -318,9 +334,9 @@ ggC <- ggplot(ds_sdt, aes(blup, yieldQUEFTS/1000)) +
   ggpmisc::stat_poly_eq(use_label(c("eq", "R2")),
                         formula = y ~ x, size = 6,
                         label.y = .975) +
-  xlab("Observed yield (t/ha)") + ylab("  yield predicted using QUEFTS estimatreds soil INS (t/ha)") +
+  xlab("Observed yield [t/ha]") + ylab("Predicted yield using reverse QUEFTS [t/ha]") +
   theme_bw() +
-  theme(axis.text= element_text(size=12))
+  theme(axis.text= element_text(size=14), axis.title = element_text(size=15, face ="bold"))
 
 
 ################################################################
