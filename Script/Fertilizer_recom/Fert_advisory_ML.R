@@ -4,18 +4,20 @@
 ##############################################################################################
 rm(list=ls())
 packages_required <- c("plyr", "tidyverse", "ggplot2", "foreach","doParallel","MuMIn","ggpmisc","sf","cluster","h2o",
-                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal", "rstudioapi", "git2r")
+                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rstudioapi", "git2r", "rgdal")
 
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
   install.packages(packages_required[!installed_packages])}
-suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
 
 if(getRversion() > "4.1" & !('rgdal' %in% rownames(installed.packages()))){
   print(version[["version.string"]])
   url <- "https://download.r-forge.r-project.org/bin/windows/contrib/4.4/rgdal_1.6-7.zip"
   install.packages(url, type="source", repos=NULL)
 }
+
+suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
+
 
 
 #################################################################################################################
