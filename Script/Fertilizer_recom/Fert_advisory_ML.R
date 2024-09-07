@@ -11,6 +11,12 @@ if(any(installed_packages == FALSE)){
   install.packages(packages_required[!installed_packages])}
 suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
 
+if(getRversion() > "4.1" & !('rgdal' %in% rownames(installed.packages()))){
+  print(version[["version.string"]])
+  url <- "https://download.r-forge.r-project.org/bin/windows/contrib/4.4/rgdal_1.6-7.zip"
+  install.packages(url, type="source", repos=NULL)
+}
+
 
 #################################################################################################################
 # 2.Get the current script's directory
@@ -281,7 +287,7 @@ for(k in unique(dssr2$TLID)){
   tdata$Y_pred_GBfv <- predResponseGBfv$predict
   tdata$Y_pred_RF <- predResponseRF$predict
   tdata$Y_pred_RFfv <- predResponseRFfv$predict
-  Leave1_GB_blupY <- rbind(Leave1_GB_blupY, tdata )
+  Leave1_GB_RF <- rbind(Leave1_GB_RF, tdata )
 }
 
 
@@ -539,7 +545,7 @@ h2o.init()
 model_path_gbm_CJ <- paste0(result_full_path, "/GBM_model_R_1721043314285_1")
 # model_path_gbm_CJ <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1721043314285_1"
 model_GB_CJ <- h2o.loadModel(model_path_gbm_CJ)
-local_model_GB_CJ <- h2o.download_model(model_GB_CJ, path = pathOut)
+local_model_GB_CJ <- h2o.download_model(model_GB_CJ, path = result_full_path)
 ML_gbm_CJ <- h2o.upload_model(local_model_GB_CJ)
 
 
