@@ -7,12 +7,21 @@ rm(list=ls())
 # install.packages("rgdal", repos="http://R-Forge.R-project.org")
 
 packages_required <- c("plyr", "tidyverse", "ggplot2", "foreach","doParallel","MuMIn","ggpmisc","sf","cluster","h2o",
-                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "rgdal", "git2r")
+                       "limSolve", "lpSolve", "Rquefts", "terra", "Metrics", "factoextra", "raster", "git2r", "rgdal", "geodata")
 
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
   install.packages(packages_required[!installed_packages])}
+
+if(getRversion() > "4.1" & !('rgdal' %in% rownames(installed.packages()))){
+  print(version[["version.string"]])
+  url <- "https://download.r-forge.r-project.org/bin/windows/contrib/4.4/rgdal_1.6-7.zip"
+  install.packages(url, type="source", repos=NULL)
+}
+
 suppressWarnings(suppressPackageStartupMessages(invisible(lapply(packages_required, library, character.only = TRUE))))
+
+
 
 #################################################################################################################
 # Define realtive directory
@@ -172,8 +181,8 @@ ML_gbm_P <- h2o.gbm(x = predictors,
                     nfolds = 5,
                     seed = 444)
 
-model_path <- h2o.saveModel(object = ML_gbm_P, path = result_full_path, force = TRUE)
-print(model_path)
+P_model_path <- h2o.saveModel(object = ML_gbm_P, path = result_full_path, force = TRUE)
+
 # P_model_path <- "D:\\OneDrive - CGIAR\\AgWise\\Dahsboard\\AgWise_Demo\\demo-repository\\Data\\Fertilizer_recom\\Intermediate\\GBM_model_R_1720435759070_4"
 P_saved_model <- h2o.loadModel(P_model_path)
 P_local_model <- h2o.download_model(P_saved_model, path = result_full_path)
