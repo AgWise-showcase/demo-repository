@@ -3,6 +3,14 @@ AgWise is a collaborative and adaptive data analytics framework designed to gene
 # AgWise analytical workflow
 This repository contains data and scripts for demonstrating AgWise analytical workflows. It includes tools to develop site-specific fertilizer advice, determine optimal planting dates and cultivars using process-based crop models, and map crop types and planting dates using remote sensing techniques.
 
+
+![Auto Assign](https://github.com/AgWise-showcase/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
+
+![Proof HTML](https://github.com/AgWise-showcase/demo-repository/actions/workflows/proof-html.yml/badge.svg)
+
+# Welcome to your organization's demo respository
+This code repository (or "repo") is designed to demonstrate the best GitHub has to offer with the least amount of noise.
+
 ## AgWise fertilizer recommendation workflows 
 The tool utilizes advanced data analytical techniques to model the variation in yield response to nutrient use observed in field trials data. This approach ensures that recommendations are finely tuned to the specific needs of each field by integrating multiple factors into its models, including, soil conditions, local weather patterns, crop-specific requirements and socio-economic conditions of the target farmers. The ultimate objective of AgWise is helping farmers to maximize nutrient use efficiency, enhance crop productivity and increase farm profitability by recommending optimal fertilizer rates tailored to their unique conditions.
 In AgWise we have four different approaches that we use based on data availability and quality and objective of the advisory.In this repository, data and scripts are provided to demonstrate the AgWise workflows. 
