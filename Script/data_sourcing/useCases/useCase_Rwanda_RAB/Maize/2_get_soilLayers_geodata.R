@@ -22,8 +22,8 @@ dataPath <- "D:/demo-repository/Data/data_sourcing"
 
 #### Download soilGrids variables #####
 variables <- c("bdod","cfvo", "clay", "nitrogen","phh2o", "sand", "silt", "soc") 
-depths <- c(5,15,30,60,100, 200)
-depths_complete <- c("0-5","5-15","15-30","30-60","60-100", "100-200")
+depths <- c(5,15,30,60)
+depths_complete <- c("0-5","5-15","15-30","30-60")
 downloadpath <- paste0(dataPath,"/useCase_", country, "_" ,useCaseName,"/",Crop,"/Landing/Soil/soilGrids/profile/")
 
 if (!dir.exists(downloadpath)) {
