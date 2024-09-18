@@ -66,8 +66,8 @@ for (i in 1:length(depths)){
   
   # Construct the new file path
   depth_index <- which(depths == depths[i])
-  oldfile <- paste0(downloadpath, "soil_af/af_", var, "_", depths_complete[depth_index], "cm_30s.tif")
-  file.remove(oldfile)
+  # oldfile <- paste0(downloadpath, "soil_af/af_", var, "_", depths_complete[depth_index], "cm_30s.tif")
+  # file.remove(oldfile)
   newfile <- paste0(downloadpath, var, "_", depths_complete[depth_index], "cm_mean_30s.tif")
   
   # Save the cropped raster
@@ -97,8 +97,8 @@ future_map(variables2, function(var) {
   
   # Construct the new file path
   vart<- tolower(var)
-  oldfile <- paste0(downloadpath2, "soil_af/af_", vart, "_0-30cm_30s.tif")
-  file.remove(oldfile)
+  # oldfile <- paste0(downloadpath2, "soil_af/af_", vart, "_0-30cm_30s.tif")
+  # file.remove(oldfile)
   newfile <- paste0(downloadpath2, "af_",vart, "_0-30cm_30s.tif")
   
   # Save the cropped raster
@@ -130,8 +130,8 @@ future_map2(var_depth_combinations3$variable, var_depth_combinations3$depth, fun
   # Construct the new file path
   depth_index <- which(depths3 == depth)
   vart<- tolower(var)
-  oldfile <- paste0(downloadpath3, "soil_af_isda/isda_", vart, "_", depths_complete3[depth_index], "cm_v0.13_30s.tif")
-  file.remove(oldfile)
+  # oldfile <- paste0(downloadpath3, "soil_af_isda/isda_", vart, "_", depths_complete3[depth_index], "cm_v0.13_30s.tif")
+  # file.remove(oldfile)
   newfile <- paste0(downloadpath3,"isda_", vart, "_", depths_complete[depth_index], "cm_v0.13_30s.tif")
   
   # Save the cropped raster

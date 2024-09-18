@@ -72,54 +72,6 @@ Paths_Vars_weather <- function(dataPath, country, useCaseName, Crop, inputData =
   return(list(inputData, listRasterRF, listRasterTmax, listRasterTMin, listRasterRH,listRasterSR, listRasterWS, pathOut))
 }
 
-#####################################################################################################################################
-#' @description a function to get weather data for a specific point in datacube
-#'
-#' @param datacube_path Path with the script in python getDataFromCubePoint.py
-#' @param downloadpath Main path where the weather data will be stored
-#' @param country Country name for which the data will be extracted (if bbox=NULL)
-#' @param Planting_month_date mm-dd of crop planting
-#' @param Harvest_month_date mm-dd of first crop harvesting
-#' @param weather_variable Name of the weather variable to be extracted
-#' @param useCaseName Name of the use case/research project
-#' @param Crop Name of the crop
-#' @param numberofyears Number of years that will be extracted
-#' @param lastYear Last year of the weather data
-#' @param x longitude location to extract the data
-#' @param y latitude location to extract the data
-#' @return spatial weather data from datacube 
-#' @return
-#' @export
-#'
-#' @examples
-get_dataCube_point <-function(datacube_path,downloadpath,country,Planting_month_date,Harvest_month_date,weather_variable,useCaseName,Crop,numberofyears, lastYear, x,y){
-  # Get bounding-box of the country of interest
-  
-  
-  
-  downloadpathfinal <- paste0(downloadpath,"/useCase_", country, "_" ,useCaseName,"/",Crop,"/Landing/",weather_variable,"/")
-  
-  if (!dir.exists(downloadpathfinal)) {
-    dir.create(downloadpathfinal)
-  }
-  
-  
-  startDate <- Planting_month_date
-  endDate <- Harvest_month_date
-  
-  
-  setwd(datacube_path)
-  # 1. Chirps-Precipitation & input manually parameters for startDate, endDate, bounding box and downloadpath
-  getDataCommand <- paste0("python getDataFromCubePoint.py --startDate=",startDate," --endDate=",endDate,
-                           " --x=",x," --y=",y,
-                           "  --variable=",weather_variable," --downloadpath=",downloadpathfinal," --lastYear ",
-                           lastYear," --numberofyears=",numberofyears)
-  system(getDataCommand, intern = TRUE)
-  
-  
-}
-
-
 #################################################################################################################
 # DATA SOURCE https://data.chc.ucsb.edu/products/CHIRPS-2.0/ for rainfall
 # https://cds.climate.copernicus.eu/cdsapp#!/dataset/sis-agrometeorological-indicators?tab=form fr AgEra 5 data
@@ -357,6 +309,14 @@ get_weather_pointData <- function(datacube_path,downloadpath, country, inputData
     maxDaysDiff <- abs(max(min(ground$pl_j) - max(ground$hv_j)))
     end <- maxDaysDiff +  as.Date(max(ground$endDate)) # start + as.difftime(maxDaysDiff, units="days")
     ddates <- seq(from=start, to=end, by=1)
+    
+    min_year <- year(start)
+    max_year <- year(end)
+    
+    min_lat <- min(ground$latitude)-0.1
+    max_lat <- max(ground$latitude)+0.1
+    min_long <- min(ground$longitude)-0.1
+    max_long <- max(ground$longitude)+0.1
    
     # create list of all possible column names to be able to row bind data from different sites with different planting and harvest dates ranges
     # rf_names <- c(paste0(varName, "_",  c(min(ground$pl_j):max(ground$hv_j))))
@@ -371,7 +331,31 @@ get_weather_pointData <- function(datacube_path,downloadpath, country, inputData
     
     
     if(varName %in% c("Rainfall", "relativeHumidity","windSpeed")) {
-      plan(multisession)  # Or use multiprocess or multicore based on your system
+      
+      weather_variable <- ifelse(varName == "Rainfall", 'chirps-precipitation',
+                                 ifelse(varName == "relativeHumidity", 'agera5-relativehumidity',
+                                        'agera5-windSpeed'))
+      
+      downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/", weather_variable, "/fieldData/")
+      
+      if (!dir.exists(downloadpathfinal)) {
+        dir.create(downloadpathfinal,recursive=TRUE)
+      }
+      
+
+      startDate <- "01-01"
+      endDate <- "12-31"
+      numberofyears <- max_year - min_year+1
+      setwd(datacube_path)
+      
+      getDataCommand <- paste0("python getDataFromCubeZone.py --startDate=",startDate," --endDate=",endDate,
+                               " --xmin=",min_long," --xmax=",max_long," --ymin=",min_lat," --ymax=",max_lat,
+                               "  --variable=",weather_variable," --downloadpath=",downloadpathfinal," --lastYear ",max_year," --numberofyears=",numberofyears)
+      system(getDataCommand, intern = TRUE)
+      
+      listRaster <- list.files(path=downloadpathfinal, pattern=".nc$", full.names = TRUE)
+      
+      plan(multisession)  
       
       process_groundi <- function(i) {
         print(i)
@@ -381,45 +365,48 @@ get_weather_pointData <- function(datacube_path,downloadpath, country, inputData
         pl_j <- groundi$pl_j
         hv_j <- groundi$hv_j
         
-        # Get the month and day of planting and harvesting
-        monthdayPi <- format(as.POSIXlt(groundi$startingDate), "%m-%d")
-        monthdayHi <- format(as.POSIXlt(groundi$endDate), "%m-%d")
         
-        weather_variable <- ifelse(varName == "Rainfall", 'chirps-precipitation',
-                                   ifelse(varName == "relativeHumidity", 'agera5-relativehumidity',
-                                          'agera5-windSpeed'))
-        
-        get_dataCube_point(datacube_path, downloadpath, country, Planting_month_date = monthdayPi,
-                           Harvest_month_date = monthdayHi, weather_variable = weather_variable,
-                           useCaseName, Crop, numberofyears = 1, lastYear = yearPi, 
-                           x = groundi$longitude, y = groundi$latitude)
-        
-        downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/", weather_variable, "/")
-        setwd(downloadpathfinal)
-        csv_filename <- paste0(weather_variable, "_", groundi$longitude, "_", groundi$latitude, "_",
-                               groundi$startingDate, "_", groundi$endDate, ".csv")
-        raini <- read_csv(csv_filename, show_col_types = FALSE)
-        
-        file.remove(csv_filename)
-        
-        if (varName %in% c("temperatureMax", "temperatureMin")) {
-          raini <- raini - 274
-        } else if (varName == "solarRadiation") {
-          raini <- raini / 1000000
+        # Case planting and harvesting dates span the same year
+        if (yearPi == yearHi) {
+          rasti<-listRaster[which(grepl(yearPi, listRaster, fixed=TRUE) == T)]
+          rasti <- terra::rast(rasti, lyrs=c(pl_j:hv_j))
         }
         
-        start <- as.Date(unique(groundi$startingDate))
-        maxDaysDiff <- as.numeric(groundi$endDate - groundi$startingDate)
-        end <- start + as.difftime(maxDaysDiff, units = "days")
-        ddates <- seq(from = start, to = end, by = 1)
-        raini$dataDate <- paste(varName, ddates, sep = "_")
+        # Case planting and harvesting dates span two different years
+        if (yearPi < yearHi) {
+          rasti1<-listRaster[which(grepl(yearPi, listRaster, fixed=TRUE) == T)]
+          rasti1 <- terra::rast(rasti1, lyrs=c(pl_j:terra::nlyr(terra::rast(rasti1))))
+          rasti2 <-listRaster[which(grepl(yearHi, listRaster, fixed=TRUE) == T)]
+          rasti2 <- terra::rast(rasti2, lyrs=c(1:hv_j))
+          rasti <- c(rasti1, rasti2)
+          
+        }
+        
+        ### Extract the information for the i-th row 
+        
+        xy <- groundi[, c("longitude", "latitude")]
+        xy <- xy %>%
+          mutate_if(is.character, as.numeric)
+        
+        raini <- terra::extract(rasti, xy,method='simple', cells=FALSE)
+        raini <- raini[,-1]
+        if(varName %in% c("temperatureMax","temperatureMin")){
+          raini <- raini-274
+        }else if (varName == "solarRadiation"){
+          raini <- raini/1000000
+        }
+        
+        names(raini) <- paste(varName, time(rasti), sep="_")
+        raini <- as.data.frame(t(raini))
+        raini$dataDate <- rownames(raini)
         rownames(raini) <- NULL
+
         
         # Merging data for different trials with differing growing periods
         raini <- merge(raini, rf_names2, by = "dataDate", all.y = TRUE)
         raini <- raini[order(raini$ID), ]
         rownames(raini) <- raini$dataDate
-        raini <- raini %>% dplyr::select(-c(ID, dataDate, lat, lon))
+        raini <- raini %>% dplyr::select(-c(ID, dataDate))
         raini2 <- as.data.frame(t(raini))
         rownames(raini2) <- NULL
         raini2 <- cbind(groundi, raini2)
@@ -908,12 +895,12 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
  
   
   inputData <- ARD[[1]]
-  listRaster_RF <- ARD[[2]]
+  #listRaster_RF <- ARD[[2]]
   listRaster_Tmax <- ARD[[3]]
   listRaster_Tmin <- ARD[[4]]
-  listRaster_RH <- ARD[[5]]
+  #listRaster_RH <- ARD[[5]]
   listRaster_SR <- ARD[[6]]
-  listRaster_WS <- ARD[[7]]
+  #listRaster_WS <- ARD[[7]]
   pathOut <- ARD[[8]]
   
 
@@ -1100,6 +1087,70 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
     stopCluster(cls)}
     # Compute the seasonal rainfall parameters for trial data: having varying planting and harvest dates
    }else{
+     start <- min(ground$Planting)
+     end <- max(ground$Harvesting) # start + as.difftime(maxDaysDiff, units="days")
+     ddates <- seq(from=start, to=end, by=1)
+     
+     min_year <- year(start)
+     max_year <- year(end)
+     
+     min_lat <- min(ground$latitude)-0.1
+     max_lat <- max(ground$latitude)+0.1
+     min_long <- min(ground$longitude)-0.1
+     max_long <- max(ground$longitude)+0.1
+     
+     startDate <- "01-01"
+     endDate <- "12-31"
+     numberofyears <- max_year - min_year+1
+     
+     downloadpath <- dataPath
+     
+     downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/chirps-precipitation/fieldData/")
+     
+     if (!dir.exists(downloadpathfinal)) {
+       dir.create(downloadpathfinal,recursive=TRUE)
+     }
+     
+     setwd(datacube_path)
+     
+     getDataCommand <- paste0("python getDataFromCubeZone.py --startDate=",startDate," --endDate=",endDate,
+                              " --xmin=",min_long," --xmax=",max_long," --ymin=",min_lat," --ymax=",max_lat,
+                              "  --variable=chirps-precipitation --downloadpath=",downloadpathfinal," --lastYear ",max_year," --numberofyears=",numberofyears)
+     system(getDataCommand, intern = TRUE)
+     
+     listRaster_RF <- list.files(path=downloadpathfinal, pattern=".nc$", full.names = TRUE)
+     
+
+     downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/agera5-relativehumidity/fieldData/")
+     
+     if (!dir.exists(downloadpathfinal)) {
+       dir.create(downloadpathfinal,recursive=TRUE)
+     }
+     
+     setwd(datacube_path)
+     
+     getDataCommand <- paste0("python getDataFromCubeZone.py --startDate=",startDate," --endDate=",endDate,
+                              " --xmin=",min_long," --xmax=",max_long," --ymin=",min_lat," --ymax=",max_lat,
+                              "  --variable=agera5-relativehumidity --downloadpath=",downloadpathfinal," --lastYear ",max_year," --numberofyears=",numberofyears)
+     system(getDataCommand, intern = TRUE)
+     
+     listRaster_RH <- list.files(path=downloadpathfinal, pattern=".nc$", full.names = TRUE)     
+     
+     
+     downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/agera5-windSpeed/fieldData/")
+     
+     if (!dir.exists(downloadpathfinal)) {
+       dir.create(downloadpathfinal,recursive=TRUE)
+     }
+     
+     setwd(datacube_path)
+     
+     getDataCommand <- paste0("python getDataFromCubeZone.py --startDate=",startDate," --endDate=",endDate,
+                              " --xmin=",min_long," --xmax=",max_long," --ymin=",min_lat," --ymax=",max_lat,
+                              "  --variable=agera5-windSpeed --downloadpath=",downloadpathfinal," --lastYear ",max_year," --numberofyears=",numberofyears)
+     system(getDataCommand, intern = TRUE)
+     
+     listRaster_WS <- list.files(path=downloadpathfinal, pattern=".nc$", full.names = TRUE) 
      
     rainfall_points <- NULL
     for(i in 1:nrow(ground)){
@@ -1111,76 +1162,33 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
       hv_j <-as.POSIXlt(groundi$Harvesting)$yday
       
       
-      # Get the month and day of planting and harvesting
-      monthdayPi <- format(as.POSIXlt(groundi$Planting), "%m-%d")
-      monthdayHi <- format(as.POSIXlt(groundi$Harvesting), "%m-%d")
-      
-      downloadpath <- dataPath
-      #Get rain data from datacube
-      get_dataCube_point(datacube_path, downloadpath=dataPath, country, Planting_month_date = monthdayPi,
-                         Harvest_month_date = monthdayHi, weather_variable = 'chirps-precipitation',
-                         useCaseName, Crop, numberofyears = 1, lastYear = yearPi, 
-                         x = groundi$longitude, y = groundi$latitude)
-      
-      downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/chirps-precipitation/")
-      setwd(downloadpathfinal)
-      csv_filename <- paste0("chirps-precipitation_", groundi$longitude, "_", groundi$latitude, "_",
-                             groundi$Planting, "_", groundi$Harvesting, ".csv")
-      raini <- read_csv(csv_filename, show_col_types = FALSE)
-      file.remove(csv_filename)
-      
-      #Get relative humidity data from datacube
-      get_dataCube_point(datacube_path, downloadpath=dataPath, country, Planting_month_date = monthdayPi,
-                         Harvest_month_date = monthdayHi, weather_variable = 'agera5-relativehumidity',
-                         useCaseName, Crop, numberofyears = 1, lastYear = yearPi, 
-                         x = groundi$longitude, y = groundi$latitude)
-      
-      downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/agera5-relativehumidity/")
-      setwd(downloadpathfinal)
-      csv_filename <- paste0("agera5-relativehumidity_", groundi$longitude, "_", groundi$latitude, "_",
-                             groundi$Planting, "_", groundi$Harvesting, ".csv")
-      RH_i <- read_csv(csv_filename, show_col_types = FALSE)
-      file.remove(csv_filename)
-      
-      #Get wind speed data from datacube
-      get_dataCube_point(datacube_path, downloadpath=dataPath, country, Planting_month_date = monthdayPi,
-                         Harvest_month_date = monthdayHi, weather_variable = 'agera5-windSpeed',
-                         useCaseName, Crop, numberofyears = 1, lastYear = yearPi, 
-                         x = groundi$longitude, y = groundi$latitude)
-      
-      downloadpathfinal <- paste0(downloadpath, "/useCase_", country, "_", useCaseName, "/", Crop, "/Landing/agera5-windSpeed/")
-      setwd(downloadpathfinal)
-      csv_filename <- paste0("agera5-windSpeed_", groundi$longitude, "_", groundi$latitude, "_",
-                             groundi$Planting, "_", groundi$Harvesting, ".csv")
-      WS_i <- read_csv(csv_filename, show_col_types = FALSE)
-      file.remove(csv_filename)
       
       # one layer per trial when pla ting and harvest year are the same, two otherwise
       if (yearPi == yearHi) {
-        # rastRF_i <-listRaster_RF[which(grepl(yearPi, listRaster_RF, fixed=TRUE) == T)]
-        # rastRF_i <- terra::rast(rastRF_i, lyrs=c(pl_j:hv_j))
-        
+        rastRF_i <-listRaster_RF[which(grepl(yearPi, listRaster_RF, fixed=TRUE) == T)]
+        rastRF_i <- terra::rast(rastRF_i, lyrs=c(pl_j:hv_j))
+
         rastTmax_i <-listRaster_Tmax[which(grepl(yearPi, listRaster_Tmax, fixed=TRUE) == T)]
         rastTmax_i <- terra::rast(rastTmax_i, lyrs=c(pl_j:hv_j))
         
         rastTmin_i <-listRaster_Tmin[which(grepl(yearPi, listRaster_Tmin, fixed=TRUE) == T)]
         rastTmin_i <- terra::rast(rastTmin_i, lyrs=c(pl_j:hv_j))
         
-        # rastRH_i <-listRaster_RH[which(grepl(yearPi, listRaster_RH, fixed=TRUE) == T)]
-        # rastRH_i <- terra::rast(rastRH_i, lyrs=c(pl_j:hv_j))
-        
+        rastRH_i <-listRaster_RH[which(grepl(yearPi, listRaster_RH, fixed=TRUE) == T)]
+        rastRH_i <- terra::rast(rastRH_i, lyrs=c(pl_j:hv_j))
+
         rastSR_i <-listRaster_SR[which(grepl(yearPi, listRaster_SR, fixed=TRUE) == T)]
         rastSR_i <- terra::rast(rastSR_i, lyrs=c(pl_j:hv_j))
         
-        # rastWS_i <-listRaster_WS[which(grepl(yearPi, listRaster_WS, fixed=TRUE) == T)]
-        # rastWS_i <- terra::rast(rastWS_i, lyrs=c(pl_j:hv_j))
-        
+        rastWS_i <-listRaster_WS[which(grepl(yearPi, listRaster_WS, fixed=TRUE) == T)]
+        rastWS_i <- terra::rast(rastWS_i, lyrs=c(pl_j:hv_j))
+
       }else{
-        # rastRF_i1 <-listRaster_RF[which(grepl(yearPi, listRaster_RF, fixed=TRUE) == T)]
-        # rastRF_i1 <- terra::rast(rastRF_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastRF_i1))))
-        # rastRF_i2 <-listRaster_RF[which(grepl(yearHi, listRaster_RF, fixed=TRUE) == T)]
-        # rastRF_i2 <- terra::rast(rastRF_i2, lyrs=c(1:hv_j))
-        # rastRF_i <- c(rastRF_i1, rastRF_i2)
+        rastRF_i1 <-listRaster_RF[which(grepl(yearPi, listRaster_RF, fixed=TRUE) == T)]
+        rastRF_i1 <- terra::rast(rastRF_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastRF_i1))))
+        rastRF_i2 <-listRaster_RF[which(grepl(yearHi, listRaster_RF, fixed=TRUE) == T)]
+        rastRF_i2 <- terra::rast(rastRF_i2, lyrs=c(1:hv_j))
+        rastRF_i <- c(rastRF_i1, rastRF_i2)
         
         rastTmax_i1 <-listRaster_Tmax[which(grepl(yearPi, listRaster_Tmax, fixed=TRUE) == T)]
         rastTmax_i1 <- terra::rast(rastTmax_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastTmax_i1))))
@@ -1194,11 +1202,11 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
         rastTmin_i2 <- terra::rast(rastTmin_i2, lyrs=c(1:hv_j))
         rastTmin_i <- c(rastTmin_i1, rastTmin_i2)
         
-        # rastRH_i1 <-listRaster_RH[which(grepl(yearPi, listRaster_RH, fixed=TRUE) == T)]
-        # rastRH_i1 <- terra::rast(rastRH_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastRH_i1))))
-        # rastRH_i2 <-listRaster_RH[which(grepl(yearHi, listRaster_RH, fixed=TRUE) == T)]
-        # rastRH_i2 <- terra::rast(rastRH_i2, lyrs=c(1:hv_j))
-        # rastRH_i <- c(rastRH_i1, rastRH_i2)
+        rastRH_i1 <-listRaster_RH[which(grepl(yearPi, listRaster_RH, fixed=TRUE) == T)]
+        rastRH_i1 <- terra::rast(rastRH_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastRH_i1))))
+        rastRH_i2 <-listRaster_RH[which(grepl(yearHi, listRaster_RH, fixed=TRUE) == T)]
+        rastRH_i2 <- terra::rast(rastRH_i2, lyrs=c(1:hv_j))
+        rastRH_i <- c(rastRH_i1, rastRH_i2)
         
         rastSR_i1 <-listRaster_SR[which(grepl(yearPi, listRaster_SR, fixed=TRUE) == T)]
         rastSR_i1 <- terra::rast(rastSR_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastSR_i1))))
@@ -1206,11 +1214,11 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
         rastSR_i2 <- terra::rast(rastSR_i2, lyrs=c(1:hv_j))
         rastSR_i <- c(rastSR_i1, rastSR_i2)
         
-        # rastWS_i1 <-listRaster_WS[which(grepl(yearPi, listRaster_WS, fixed=TRUE) == T)]
-        # rastWS_i1 <- terra::rast(rastWS_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastWS_i1))))
-        # rastWS_i2 <-listRaster_WS[which(grepl(yearHi, listRaster_WS, fixed=TRUE) == T)]
-        # rastWS_i2 <- terra::rast(rastWS_i2, lyrs=c(1:hv_j))
-        # rastWS_i <- c(rastWS_i1, rastWS_i2)
+        rastWS_i1 <-listRaster_WS[which(grepl(yearPi, listRaster_WS, fixed=TRUE) == T)]
+        rastWS_i1 <- terra::rast(rastWS_i1, lyrs=c(pl_j:terra::nlyr(terra::rast(rastWS_i1))))
+        rastWS_i2 <-listRaster_WS[which(grepl(yearHi, listRaster_WS, fixed=TRUE) == T)]
+        rastWS_i2 <- terra::rast(rastWS_i2, lyrs=c(1:hv_j))
+        rastWS_i <- c(rastWS_i1, rastWS_i2)
         
         
       }
@@ -1220,12 +1228,12 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
       xy <- xy %>%
         mutate_if(is.character, as.numeric)
       
-      rainfall_points_i <- t(raini$precipitation)
+      rainfall_points_i <- terra::extract(rastRF_i, xy,method='simple', cells=FALSE)
       Tmax_points_i <- terra::extract(rastTmax_i, xy,method='simple', cells=FALSE)
       Tmin_points_i <- terra::extract(rastTmin_i, xy,method='simple', cells=FALSE)
-      RH_points_i <- t(RH_i$Relative_Humidity_2m_12h)
+      RH_points_i <- terra::extract(rastRH_i, xy,method='simple', cells=FALSE)
       SR_points_i <- terra::extract(rastSR_i, xy,method='simple', cells=FALSE)
-      WS_points_i <- t(WS_i$Wind_Speed_10m_Mean)
+      WS_points_i <- terra::extract(rastWS_i, xy,method='simple', cells=FALSE)
       
       
       
@@ -1238,7 +1246,7 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
       groundi$Year <- yearPi
       
       # Compute the total amount of rainfall
-      groundi$totalRF <- sum(rainfall_points_i[c(1:length(rainfall_points_i))])
+      groundi$totalRF <- sum(rainfall_points_i[c(2:length(rainfall_points_i))])
       
       # Compute the Number of rainy day
       nrdi <- rainfall_points_i[c(1:length(rainfall_points_i))]
@@ -1247,17 +1255,17 @@ get_WeatherSummarydata <- function(dataPath,datacube_path, country, useCaseName,
       groundi$nrRainyDays <- sum(nrdi)
       
       # Compute monthly total, at 31 days interval and the remaining  days at the end
-      mrdi <- rainfall_points_i[c(1:length(rainfall_points_i))]
+      mrdi <- rainfall_points_i[c(2:length(rainfall_points_i))]
       mtmaxi <- Tmax_points_i[c(2:length(Tmax_points_i))]
       mtmini <- Tmin_points_i[c(2:length(Tmin_points_i))]
-      mrhi <- RH_points_i[c(1:length(RH_points_i))]
+      mrhi <- RH_points_i[c(2:length(RH_points_i))]
       msri <- SR_points_i[c(2:length(SR_points_i))]
-      mwsi <- WS_points_i[c(1:length(WS_points_i))]
+      mwsi <- WS_points_i[c(2:length(WS_points_i))]
       
       
       
       mdiv <- unique(c(seq(1, length(mrdi), 30), length(mrdi)))
-      length(mtmini)
+      #length(mtmini)
       
       mdivq <- length(mrdi)%/%31
       mdivr <- length(mrdi)%%31
