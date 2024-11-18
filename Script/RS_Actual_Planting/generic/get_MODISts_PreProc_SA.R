@@ -14,8 +14,8 @@
 #### Getting started #######
 
 # 1. Sourcing required packages -------------------------------------------
-packages_required <- c("plotly", "raster", "rgdal", "gridExtra", "sp", "ggplot2", "caret", "signal", "timeSeries", "zoo", "pracma", "rasterVis", "RColorBrewer", "dplyr", "terra", "reshape2")
-
+packages_required <- c("plotly", "raster", "gridExtra", "sp", "ggplot2", "caret", "signal", "timeSeries", "zoo", "pracma", "rasterVis", "RColorBrewer", "dplyr", "terra", "reshape2")
+#rgdal
 # check and install packages that are not yet installed
 installed_packages <- packages_required %in% rownames(installed.packages())
 if(any(installed_packages == FALSE)){
@@ -105,6 +105,8 @@ smooth_rasterTS<-function(country, useCaseName, Planting_year, Harvesting_year, 
   ## 2.4. Masking out of the cropped area ####
   
   ### 2.4.1. Get the cropland mask and resample to NDVI ####
+  ## Cropland mask ###
+  if (CropMask == TRUE){
   cropmask <- list.files(paste0(pathOut.loc,"/useCase_", country, "_",useCaseName, "/","MODISdata/raw/CropMask"), pattern=".tif$", full.names=T)
   cropmask <- terra::rast(cropmask)
   cropmask <- terra::mask(cropmask, countryShp)
@@ -116,9 +118,6 @@ smooth_rasterTS<-function(country, useCaseName, Planting_year, Harvesting_year, 
   ## crop and mask cropland
   #stacked_EVI_s <- stacked_EVI_s/10000 ## scaling to NDVI value ranges from -1 to +1
   #stacked_EVI_s <- stacked_EVI_s * cropmask
-  
-  ## Cropland mask ###
-  if (CropMask == TRUE){
     stacked_EVI_s <-stacked_EVI_s*cropmask
   }
   
